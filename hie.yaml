@@ -1,0 +1,14 @@
+cradle:
+  multi:
+    - path: ./funflow
+      config:
+        cradle:
+          stack:
+            - path: ./funflow/src
+              component: "funflow:lib"
+    - path: ./funflow-examples
+      config:
+        cradle:
+          stack:
+            - path: ./funflow-examples/python-flow
+              component: "funflow-examples:exe:python-flow"
