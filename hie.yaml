@@ -6,9 +6,9 @@ cradle:
           stack:
             - path: ./funflow/src
               component: "funflow:lib"
-    - path: ./funflow-examples
+    - path: ./funflow2
       config:
         cradle:
           stack:
-            - path: ./funflow-examples/python-flow
-              component: "funflow-examples:exe:python-flow"
+            - path: ./funflow2/src
+              component: "funflow2:lib"

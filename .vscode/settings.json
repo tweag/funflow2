@@ -1,3 +1,4 @@
 {
-    "nixEnvSelector.nixShellConfig": "${workspaceRoot}/shell-dev.nix"
+  "nixEnvSelector.nixShellConfig": "${workspaceRoot}/shell-dev.nix",
+  "languageServerHaskell.hieVariant": "ghcide"
 }

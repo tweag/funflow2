@@ -8,6 +8,7 @@ packages:
   funflow-cwl/
   funflow-examples/
   funflow-jobs/
+  funflow2/
 
 constraints:
   -- Needed because katip doesn't yet compile with newer versions
