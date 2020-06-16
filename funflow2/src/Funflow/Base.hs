@@ -1,18 +1,25 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 
 module Funflow.Base
   ( Flow,
     RequiredStrands,
     RequiredCoreEffects,
+    runFlow,
   )
 where
 
 import Control.Arrow (Arrow)
 import Control.Kernmantle.Caching (ProvidesCaching)
+import Control.Kernmantle.Caching (localStoreWithId)
 import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli)
+import Control.Kernmantle.Rope ((&), perform, runReader, untwine, weave')
 import Control.Monad.IO.Class (MonadIO)
-import Funflow.Flows.Cached (CachedFlow)
+import qualified Data.CAS.ContentStore as CS
+import Funflow.Flows.Cached (CachedFlow, runCached)
+import Path (Abs, Dir, absdir)
 
 -- The constraints on the set of "user effects" ("strands").
 -- These will be "interpreted" into "core effects" which have contraints defined below.
@@ -37,3 +44,12 @@ type Flow input output =
     (RequiredCoreEffects m)
     input
     output
+
+-- Run a flow
+runFlow :: Flow input output -> input -> IO output
+runFlow flow input = CS.withStore [absdir|/tmp/_store|] $ \store -> do
+  flow
+    & weave' #cached runCached
+    & untwine
+    & runReader (localStoreWithId store $ Just 1)
+    & perform input

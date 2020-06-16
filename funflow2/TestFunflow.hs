@@ -1,22 +1,8 @@
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE QuasiQuotes #-}
-
-import Control.Kernmantle.Caching (localStoreWithId)
-import Control.Kernmantle.Rope ((&), perform, runReader, untwine, weave')
-import qualified Data.CAS.ContentStore as CS
-import Funflow.Base (Flow)
+import Funflow.Base (Flow, runFlow)
 import Funflow.Flows (cachedIO)
-import Funflow.Flows.Cached (runCached)
-import Path (Abs, Dir, absdir)
 
 main :: IO ()
-main =
-  CS.withStore [absdir|/tmp/_store|] $ \store -> do
-    flow
-      & weave' #cached runCached
-      & untwine
-      & runReader (localStoreWithId store $ Just 1)
-      & perform ()
+main = runFlow flow ()
 
 -- main :: IO ()
 -- main = print $ runFlow flow input

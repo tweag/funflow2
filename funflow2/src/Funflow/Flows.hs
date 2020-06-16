@@ -2,7 +2,7 @@
 {-# LANGUAGE RankNTypes #-}
 
 {-
- - Utilities to hide the kernmantle API
+ - Utilities to hide the kernmantle API by putting together the user effect and the strand type
  -}
 module Funflow.Flows
   ( -- Cached flows
