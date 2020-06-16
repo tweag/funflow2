@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -13,24 +15,32 @@ module Funflow.Flows
   )
 where
 
-import Control.Kernmantle.Rope (strand)
+import Control.Arrow (arr)
+import Control.Kernmantle.Caching (caching)
+import Control.Kernmantle.Rope (liftKleisliIO)
+import Data.CAS.ContentHashable as CH
 import Data.Default (def)
+import Data.Store (Store)
 import Funflow.Base (Flow)
-import Funflow.Flows.Cached (CachedFlow (Cached, CachedIO), CachedFlowProperties)
+import Funflow.Flows.Cached (CachedFlowProperties (..))
 
 -- TODOs
 -- import Funflow.Flows.External
 -- import Funflow.Flows.Store
 
 -- Cached flows
-cachedWithProps :: (CachedFlowProperties i o) -> (i -> o) -> Flow i o
-cachedWithProps props f = strand #cached $ Cached props f
+cachedWithProps :: (CH.ContentHashable IO i, Store o) => (CachedFlowProperties i o) -> (i -> o) -> Flow i o
+cachedWithProps props f =
+  let CachedFlowProperties {name} = props
+   in caching name (arr f)
 
-cached :: (i -> o) -> Flow i o
+cached :: (CH.ContentHashable IO i, Store o) => (i -> o) -> Flow i o
 cached = cachedWithProps def
 
-cachedIOWithProps :: (CachedFlowProperties i o) -> (i -> IO o) -> Flow i o
-cachedIOWithProps props f = strand #cached $ CachedIO props f
+cachedIOWithProps :: (CH.ContentHashable IO i, Store o) => (CachedFlowProperties i o) -> (i -> IO o) -> Flow i o
+cachedIOWithProps props f =
+  let CachedFlowProperties {name} = props
+   in caching name (liftKleisliIO f)
 
-cachedIO :: (i -> IO o) -> Flow i o
+cachedIO :: (CH.ContentHashable IO i, Store o) => (i -> IO o) -> Flow i o
 cachedIO = cachedIOWithProps def

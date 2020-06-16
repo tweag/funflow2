@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 8dde51d7ea2a1340541cfd8745998e13d68e718a94576553fb23306dad3ed564
+-- hash: 63b50076c59c149840bdd6f992930008fbfb6ffc791e9812dd3ac7c4b7c29ce4
 
 name:           funflow2
 version:        0.1.0
@@ -42,6 +42,7 @@ library
     , kernmantle-batteries
     , kernmantle-caching
     , path
+    , store
     , text
   default-language: Haskell2010
 
@@ -62,5 +63,6 @@ test-suite test-funflow
     , kernmantle-batteries
     , kernmantle-caching
     , path
+    , store
     , text
   default-language: Haskell2010

@@ -4,4 +4,7 @@ main :: IO ()
 main = runFlow flow ()
 
 flow :: Flow () ()
-flow = cachedIO (\() -> putStr "\n\n====================\nIT WORKS\n====================\n\n")
+flow = cachedIO computation
+
+computation :: () -> IO ()
+computation = const $ putStr "\n\n====================\nIT WORKS\n====================\n\n"
