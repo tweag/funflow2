@@ -1,13 +1,12 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE QuasiQuotes #-}
 
 import Control.Kernmantle.Caching (localStoreWithId)
-import Control.Kernmantle.Rope ((&), HasKleisli, liftKleisliIO, perform, runReader, strand, untwine, weave')
+import Control.Kernmantle.Rope ((&), perform, runReader, untwine, weave')
 import qualified Data.CAS.ContentStore as CS
-import Data.Default (def)
-import Funflow (Flow)
-import Funflow.Flows.Cached (CachedFlow (Cached, CachedIO), runCached)
+import Funflow.Base (Flow)
+import Funflow.Flows (cachedIO)
+import Funflow.Flows.Cached (runCached)
 import Path (Abs, Dir, absdir)
 
 main :: IO ()
@@ -24,7 +23,4 @@ main =
 -- main = print $ runFlowWithProps props flow input
 
 flow :: Flow () ()
-flow = strand #cached $ CachedIO def (\() -> putStrLn "Hello")
--- flow :: Flow () ()
--- flow = cachedIO (\() -> putStrLn "Hello")
--- flow = cachedIOWithProps props (\() -> putStrLn "Hello")
+flow = cachedIO (\() -> putStr "\n\n====================\nIT WORKS\n====================\n\n")
