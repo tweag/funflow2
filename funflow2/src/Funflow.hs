@@ -1,7 +1,15 @@
 {-
  - Entry point to Funflow
  -}
-module Funflow where
+module Funflow
+  ( Flow,
+    runFlow,
+    cached,
+    cachedWithProps,
+    cachedIO,
+    cachedIOWithProps,
+  )
+where
 
-import Funflow.Base ()
-import Funflow.Flows ()
+import Funflow.Base (Flow, runFlow)
+import Funflow.Flows (cached, cachedIO, cachedIOWithProps, cachedWithProps)
