@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4aa9f59ba37e96d9cdb34fab79193160561e53c247a8f265dbfd10f33143fb89
+-- hash: cc5b61a1f610e57c6afface78e35477cb64bcf0b278727f6e458a510b6482d47
 
 name:           funflow2
 version:        0.1.0
@@ -25,8 +25,6 @@ library
   exposed-modules:
       Funflow
       Funflow.Flows.Cached
-      Funflow.Flows.External
-      Funflow.Flows.Store
   other-modules:
       Paths_funflow2
   hs-source-dirs:
@@ -57,7 +55,7 @@ test-suite test-funflow
     , cas-hashable
     , cas-store
     , data-default
-    , funflow
+    , funflow2
     , kernmantle
     , kernmantle-batteries
     , kernmantle-caching

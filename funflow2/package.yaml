@@ -31,7 +31,7 @@ tests:
       - -threaded
     dependencies:
       - base >=4.6 && <5
-      - funflow
+      - funflow2
 
 # Test-suite unit-tests
 #   type:               exitcode-stdio-1.0

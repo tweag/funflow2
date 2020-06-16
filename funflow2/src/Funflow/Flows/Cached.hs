@@ -1,6 +1,6 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 {-
  - Effects that allows to define flows from pure functions or IO monadic continuations.
@@ -8,6 +8,7 @@
  -}
 module Funflow.Flows.Cached where
 
+import Control.Kernmantle.Rope ((&), HasKleisli, liftKleisliIO, perform, runReader, strand, untwine, weave')
 import Data.ByteString (ByteString)
 import qualified Data.CAS.ContentStore as CS
 import Data.Default (Default (def))
@@ -32,9 +33,16 @@ instance Default (CachedFlowProperties i o) where
   def :: CachedFlowProperties i o
   def =
     CachedFlowProperties
-      { name = "",
-        cache = CS.NoCache
+      { name = Nothing,
+        cache = CS.NoCache,
+        metadataWriter = Nothing
       }
+
+-- interpret the cached effect
+runCached :: (HasKleisli IO eff) => CachedFlow a b -> eff a b
+runCached command = case command of
+  Cached _ f -> liftKleisliIO $ return . f
+  CachedIO _ f -> liftKleisliIO f
 
 -- Flows that use caching
 data CachedFlow i o where
