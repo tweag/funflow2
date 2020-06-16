@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 63b50076c59c149840bdd6f992930008fbfb6ffc791e9812dd3ac7c4b7c29ce4
+-- hash: 70851d98fdc8593a2e038175b86af717d84507c5922e33a9e85f9168946e73f8
 
 name:           funflow2
 version:        0.1.0
@@ -26,7 +26,8 @@ library
       Funflow
       Funflow.Base
       Funflow.Flows
-      Funflow.Flows.Cached
+      Funflow.Flows.External
+      Funflow.Flows.Simple
   other-modules:
       Paths_funflow2
   hs-source-dirs:

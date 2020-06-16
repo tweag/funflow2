@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
@@ -8,24 +9,29 @@ module Funflow.Base
     RequiredStrands,
     RequiredCoreEffects,
     runFlow,
+    interpretSimpleFlow,
+    interpretExternalFlow,
   )
 where
 
 import Control.Arrow (Arrow)
+import Control.Arrow (arr)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Caching (localStoreWithId)
-import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli)
-import Control.Kernmantle.Rope ((&), perform, runReader, untwine)
+import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, SieveTrans, liftKleisliIO)
+import Control.Kernmantle.Rope ((&), perform, runReader, untwine, weave')
 import Control.Monad.IO.Class (MonadIO)
 import qualified Data.CAS.ContentStore as CS
+import Funflow.Flows.External (ExternalFlow (RunCommand))
+import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 import Path (Abs, Dir, absdir)
 
--- The constraints on the set of "user effects" ("strands").
--- These will be "interpreted" into "core effects" which have contraints defined below.
-type RequiredStrands = '[]
-
---'("externalStep", ExternalFlow),
---'("directStoreAccess", DirectStoreAccessFlow)
+-- The constraints on the set of "strands"
+-- These will be "interpreted" into "core effects" (which have contraints defined below).
+type RequiredStrands =
+  '[  '("simple", SimpleFlow),
+      '("external", ExternalFlow)
+   ]
 
 -- The class constraints on the "core effect".
 -- The "core effect" is the effect used to run any kind of "user effect" ("strand")
@@ -38,7 +44,7 @@ type Flow input output =
   forall m.
   (MonadIO m) =>
   AnyRopeWith
-    '[]
+    RequiredStrands
     (RequiredCoreEffects m)
     input
     output
@@ -50,7 +56,8 @@ runFlow flow input =
   CS.withStore [absdir|/tmp/funflow/store|] $ \store -> do
     flow
       -- Weave effects
-      -- TODO
+      & weave' #simple interpretSimpleFlow
+      & weave' #external interpretExternalFlow
       -- Strip of empty list of strands (after all weaves)
       & untwine
       -- Define the caching
@@ -58,3 +65,14 @@ runFlow flow input =
       & runReader (localStoreWithId store $ Just 1)
       -- Finally, run
       & perform input
+
+-- Interpret simple flow
+interpretSimpleFlow :: (Arrow a, SieveTrans m a, MonadIO m) => SimpleFlow i o -> a i o
+interpretSimpleFlow simpleFlow = case simpleFlow of
+  Pure _ f -> arr f
+  IO _ f -> liftKleisliIO f
+
+interpretExternalFlow :: (Arrow a, SieveTrans m a, MonadIO m) => ExternalFlow i o -> a i o
+interpretExternalFlow externalFlow = case externalFlow of
+  -- TODO
+  RunCommand _ _ -> arr $ return ()
