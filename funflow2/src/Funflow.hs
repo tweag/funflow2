@@ -8,18 +8,16 @@ module Funflow
     -- Caching
     caching,
     -- Helpers to make flows in an idiomatic way
-    pureFlowWithProps,
     pureFlow,
-    ioFlowWithProps,
     ioFlow,
+    externalFlow,
   )
 where
 
 import Control.Kernmantle.Caching (caching)
 import Funflow.Base (Flow, runFlow)
 import Funflow.Flows
-  ( ioFlow,
-    ioFlowWithProps,
+  ( externalFlow,
+    ioFlow,
     pureFlow,
-    pureFlowWithProps,
   )

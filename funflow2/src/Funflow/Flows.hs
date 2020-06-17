@@ -7,26 +7,22 @@
  - Utilities to hide the kernmantle API by putting together the user effect and the strand type
  -}
 module Funflow.Flows
-  ( pureFlowWithProps,
-    pureFlow,
-    ioFlowWithProps,
+  ( pureFlow,
     ioFlow,
+    externalFlow,
   )
 where
 
 import Control.Kernmantle.Rope (strand)
-import Data.Default (def)
 import Funflow.Base (Flow)
-import Funflow.Flows.Simple (SimpleFlow (IO, Pure), SimpleFlowProperties)
-
-pureFlowWithProps :: SimpleFlowProperties i o -> (i -> o) -> Flow i o
-pureFlowWithProps props f = strand #simple $ Pure props f
+import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig)
+import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 
 pureFlow :: (i -> o) -> Flow i o
-pureFlow f = pureFlowWithProps def f
-
-ioFlowWithProps :: SimpleFlowProperties i o -> (i -> IO o) -> Flow i o
-ioFlowWithProps props f = strand #simple $ IO props f
+pureFlow f = strand #simple $ Pure f
 
 ioFlow :: (i -> IO o) -> Flow i o
-ioFlow f = ioFlowWithProps def f
+ioFlow f = strand #simple $ IO f
+
+externalFlow :: ExternalFlowConfig i () -> Flow i ()
+externalFlow config = strand #external $ ExternalFlow config

@@ -22,7 +22,7 @@ import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, SieveTrans, liftKleisli
 import Control.Kernmantle.Rope ((&), perform, runReader, untwine, weave')
 import Control.Monad.IO.Class (MonadIO)
 import qualified Data.CAS.ContentStore as CS
-import Funflow.Flows.External (ExternalFlow (RunCommand))
+import Funflow.Flows.External (ExternalFlow (ExternalFlow))
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 import Path (Abs, Dir, absdir)
 
@@ -52,27 +52,31 @@ type Flow input output =
 -- Run a flow
 runFlow :: Flow input output -> input -> IO output
 runFlow flow input =
-  -- Run with store to enable caching (with default path to store)
-  CS.withStore [absdir|/tmp/funflow/store|] $ \store -> do
-    flow
-      -- Weave effects
-      & weave' #simple interpretSimpleFlow
-      & weave' #external interpretExternalFlow
-      -- Strip of empty list of strands (after all weaves)
-      & untwine
-      -- Define the caching
-      -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
-      & runReader (localStoreWithId store $ Just 1)
-      -- Finally, run
-      & perform input
+  let -- TODO choose path
+      defaultPath = [absdir|/tmp/funflow/store|]
+      defaultCachingId = Just 1
+   in -- Run with store to enable caching (with default path to store)
+      CS.withStore defaultPath $ \store -> do
+        flow
+          -- Weave effects
+          & weave' #simple interpretSimpleFlow
+          & weave' #external interpretExternalFlow
+          -- Strip of empty list of strands (after all weaves)
+          & untwine
+          -- Define the caching
+          -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
+          & runReader (localStoreWithId store $ defaultCachingId)
+          -- Finally, run
+          & perform input
 
 -- Interpret simple flow
 interpretSimpleFlow :: (Arrow a, SieveTrans m a, MonadIO m) => SimpleFlow i o -> a i o
 interpretSimpleFlow simpleFlow = case simpleFlow of
-  Pure _ f -> arr f
-  IO _ f -> liftKleisliIO f
+  Pure f -> arr f
+  IO f -> liftKleisliIO f
 
+-- Interpret external flow
 interpretExternalFlow :: (Arrow a, SieveTrans m a, MonadIO m) => ExternalFlow i o -> a i o
 interpretExternalFlow externalFlow = case externalFlow of
   -- TODO
-  RunCommand _ _ -> arr $ return ()
+  ExternalFlow _ -> arr $ return ()
