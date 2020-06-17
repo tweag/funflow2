@@ -10,7 +10,4 @@ cradle:
       config:
         cradle:
           stack:
-            - path: ./funflow2/src
-              component: "funflow2:lib"
-            - path: ./funflow2/TestFunflow.hs
-              component: "funflow2:test-funflow"
+            component: "funflow2"
