@@ -11,12 +11,12 @@ import Funflow
   )
 -- Standard way of building flows
 import Funflow
-  ( -- externalFlow,
+  ( externalFlow,
     ioFlow,
     pureFlow,
   )
-
--- import Funflow.Flows.External (ExternalFlowConfig (ExternalFlowConfig))
+-- Required to build an external flow
+import Funflow.Flows.External (ExternalFlowConfig (ExternalFlowConfig), args, command, env)
 
 main :: IO ()
 main = do
@@ -28,7 +28,7 @@ main = do
   putStr "\n---------------------\n"
   testFlow @Int @Int "a flow from a pure function with caching" someCachedFlow 0
   putStr "\n---------------------\n"
-  -- testFlow @() @() "a flow running an external task" someExternalFlow ()
+  testFlow @() @() "a flow running an external task" someExternalFlow ()
   putStr "\n------  DONE   ------\n"
 
 testFlow :: forall i o. (Show i, Show o) => String -> Flow i o -> i -> IO ()
@@ -45,4 +45,6 @@ somePureFlow = pureFlow (+ 1)
 
 someIoFlow :: Flow () ()
 someIoFlow = ioFlow $ const $ putStrLn "Some IO operation"
--- let someExternalFlow = externalFlow (ExternalFlowConfig {command = "echo", args = ["Hello world"]})
+
+someExternalFlow :: Flow () ()
+someExternalFlow = externalFlow (ExternalFlowConfig {command = "hello", args = [], env = []})

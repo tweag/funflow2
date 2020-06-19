@@ -18,4 +18,4 @@ data ExternalFlowConfig i o
 
 -- External flows to perform external tasks
 data ExternalFlow i o where
-  ExternalFlow :: ExternalFlowConfig i o -> ExternalFlow i ()
+  ExternalFlow :: ExternalFlowConfig i o -> ExternalFlow () ()

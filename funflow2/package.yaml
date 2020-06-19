@@ -14,6 +14,9 @@ dependencies:
   - cas-store
   - cas-hashable
   - data-default
+  - external-executor
+  - hashable
+  - katip
   - kernmantle
   - kernmantle-batteries
   - kernmantle-caching

@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -16,15 +18,25 @@ where
 
 import Control.Arrow (Arrow)
 import Control.Arrow (arr)
+import Control.Exception (bracket)
+import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (NoOutputCapture), TaskDescription (..))
+import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Caching (localStoreWithId)
 import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, SieveTrans, liftKleisliIO)
 import Control.Kernmantle.Rope ((&), perform, runReader, untwine, weave')
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.IO.Class (MonadIO)
+import Data.CAS.ContentHashable ()
+import Data.CAS.ContentHashable (contentHash)
 import qualified Data.CAS.ContentStore as CS
-import Funflow.Flows.External (ExternalFlow (ExternalFlow))
+import Data.String (fromString)
+import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig (ExternalFlowConfig), command)
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
+import Katip (closeScribes, defaultScribeSettings, initLogEnv, registerScribe, runKatipContextT)
+import Katip (ColorStrategy (ColorIfTerminal), Severity (InfoS), Verbosity (V2), mkHandleScribe, permitItem)
 import Path (Abs, Dir, absdir)
+import System.IO (stdout)
 
 -- The constraints on the set of "strands"
 -- These will be "interpreted" into "core effects" (which have contraints defined below).
@@ -60,7 +72,7 @@ runFlow flow input =
         flow
           -- Weave effects
           & weave' #simple interpretSimpleFlow
-          & weave' #external interpretExternalFlow
+          & weave' #external (interpretExternalFlow store)
           -- Strip of empty list of strands (after all weaves)
           & untwine
           -- Define the caching
@@ -76,7 +88,32 @@ interpretSimpleFlow simpleFlow = case simpleFlow of
   IO f -> liftKleisliIO f
 
 -- Interpret external flow
-interpretExternalFlow :: (Arrow a, SieveTrans m a, MonadIO m) => ExternalFlow i o -> a i o
-interpretExternalFlow externalFlow = case externalFlow of
-  -- TODO
-  ExternalFlow _ -> arr $ return ()
+interpretExternalFlow :: (Arrow a, SieveTrans m a, MonadIO m) => CS.ContentStore -> ExternalFlow i o -> a i o
+interpretExternalFlow store externalFlow = case externalFlow of
+  ExternalFlow (ExternalFlowConfig {command}) -> liftKleisliIO $ \_ -> do
+    -- Create the task description (task + cache hash)
+    let task :: ExternalTask
+        task =
+          ExternalTask
+            { _etCommand = fromString command,
+              -- TODO use input env
+              _etEnv = EnvExplicit [],
+              -- TODO use input args
+              _etParams = [],
+              _etWriteToStdOut = NoOutputCapture
+            }
+    hash <- liftIO $ contentHash task
+    let taskDescription =
+          TaskDescription
+            { _tdOutput = hash,
+              _tdTask = task
+            }
+    -- Katip machinery
+    handleScribe <- liftIO $ mkHandleScribe ColorIfTerminal stdout (permitItem InfoS) V2
+    let makeLogEnv = registerScribe "stdout" handleScribe defaultScribeSettings =<< initLogEnv "funflow" "external"
+    bracket makeLogEnv closeScribes $ \le -> do
+      let initialContext = ()
+      let initialNamespace = "funflow"
+      runKatipContextT le initialContext initialNamespace $ execute store taskDescription
+    -- Done
+    return ()

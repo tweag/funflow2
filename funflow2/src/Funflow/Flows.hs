@@ -24,5 +24,5 @@ pureFlow f = strand #simple $ Pure f
 ioFlow :: (i -> IO o) -> Flow i o
 ioFlow f = strand #simple $ IO f
 
-externalFlow :: ExternalFlowConfig i () -> Flow i ()
+externalFlow :: ExternalFlowConfig i () -> Flow () ()
 externalFlow config = strand #external $ ExternalFlow config
