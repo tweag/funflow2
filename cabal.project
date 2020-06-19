@@ -9,6 +9,7 @@ packages:
   funflow-examples/
   funflow-jobs/
   funflow2/
+  external-executor/
 
 constraints:
   -- Needed because katip doesn't yet compile with newer versions
