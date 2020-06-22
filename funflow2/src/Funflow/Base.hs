@@ -19,7 +19,7 @@ where
 import Control.Arrow (Arrow)
 import Control.Arrow (arr)
 import Control.Exception (bracket)
-import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (NoOutputCapture), TaskDescription (..))
+import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (StdOutCapture), TaskDescription (..))
 import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Caching (localStoreWithId)
@@ -31,7 +31,7 @@ import Data.CAS.ContentHashable ()
 import Data.CAS.ContentHashable (contentHash)
 import qualified Data.CAS.ContentStore as CS
 import Data.String (fromString)
-import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig (ExternalFlowConfig), command)
+import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig (ExternalFlowConfig), args, command)
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 import Katip (closeScribes, defaultScribeSettings, initLogEnv, registerScribe, runKatipContextT)
 import Katip (ColorStrategy (ColorIfTerminal), Severity (InfoS), Verbosity (V2), mkHandleScribe, permitItem)
@@ -90,7 +90,7 @@ interpretSimpleFlow simpleFlow = case simpleFlow of
 -- Interpret external flow
 interpretExternalFlow :: (Arrow a, SieveTrans m a, MonadIO m) => CS.ContentStore -> ExternalFlow i o -> a i o
 interpretExternalFlow store externalFlow = case externalFlow of
-  ExternalFlow (ExternalFlowConfig {command}) -> liftKleisliIO $ \_ -> do
+  ExternalFlow (ExternalFlowConfig {command, args}) -> liftKleisliIO $ \_ -> do
     -- Create the task description (task + cache hash)
     let task :: ExternalTask
         task =
@@ -99,8 +99,8 @@ interpretExternalFlow store externalFlow = case externalFlow of
               -- TODO use input env
               _etEnv = EnvExplicit [],
               -- TODO use input args
-              _etParams = [],
-              _etWriteToStdOut = NoOutputCapture
+              _etParams = [fromString arg | arg <- args],
+              _etWriteToStdOut = StdOutCapture
             }
     hash <- liftIO $ contentHash task
     let taskDescription =

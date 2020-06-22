@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
@@ -26,7 +27,7 @@ main = do
   putStr "\n---------------------\n"
   testFlow @() @() "a flow with IO" someIoFlow ()
   putStr "\n---------------------\n"
-  testFlow @Int @Int "a flow from a pure function with caching" someCachedFlow 0
+  testFlow @() @() "a flow with caching" someCachedFlow ()
   putStr "\n---------------------\n"
   testFlow @() @() "a flow running an external task" someExternalFlow ()
   putStr "\n------  DONE   ------\n"
@@ -37,8 +38,10 @@ testFlow label flow input = do
   result <- runFlow @i @o flow input
   putStrLn $ "Got " ++ (show result) ++ " from input " ++ (show input)
 
-someCachedFlow :: Flow Int Int
-someCachedFlow = caching "increment" $ pureFlow (+ 1)
+someCachedFlow :: Flow () ()
+someCachedFlow = proc () -> do
+  () <- caching "someComputation" $ ioFlow (\() -> putStrLn "This message should appear at most once") -< ()
+  ioFlow (\() -> putStrLn "If nothing printed, then it works") -< ()
 
 somePureFlow :: Flow Int Int
 somePureFlow = pureFlow (+ 1)
@@ -47,4 +50,4 @@ someIoFlow :: Flow () ()
 someIoFlow = ioFlow $ const $ putStrLn "Some IO operation"
 
 someExternalFlow :: Flow () ()
-someExternalFlow = externalFlow (ExternalFlowConfig {command = "hello", args = [], env = []})
+someExternalFlow = externalFlow (ExternalFlowConfig {command = "echo", args = ["Hello"], env = []})
