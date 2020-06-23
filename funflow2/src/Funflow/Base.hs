@@ -24,7 +24,7 @@ import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (St
 import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Caching (localStoreWithId)
-import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, InRope, LooseRope, SieveTrans, liftKleisliIO)
+import Control.Kernmantle.Rope (AnyRopeWith, Entwines, HasKleisli, HasKleisliIO, LooseRope, SatisfiesAll, liftKleisliIO)
 import Control.Kernmantle.Rope ((&), perform, runReader, strand, untwine, weave, weave')
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.IO.Class (MonadIO)
@@ -88,13 +88,13 @@ runFlow flow input =
           & perform input
 
 -- Interpret simple flow
-interpretSimpleFlow :: (Arrow a, SieveTrans m a, MonadIO m) => SimpleFlow i o -> a i o
+interpretSimpleFlow :: (Arrow a, HasKleisliIO m a) => SimpleFlow i o -> a i o
 interpretSimpleFlow simpleFlow = case simpleFlow of
   Pure f -> arr f
   IO f -> liftKleisliIO f
 
 -- Interpret external flow
-interpretExternalFlow :: (Arrow a, SieveTrans m a, MonadIO m) => CS.ContentStore -> ExternalFlow i o -> a i o
+interpretExternalFlow :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> ExternalFlow i o -> a i o
 interpretExternalFlow store externalFlow = case externalFlow of
   ExternalFlow (ExternalFlowConfig {E.command, E.args}) -> liftKleisliIO $ \_ -> do
     -- Create the task description (task + cache hash)
@@ -124,8 +124,17 @@ interpretExternalFlow store externalFlow = case externalFlow of
     -- Done
     return ()
 
+-- A type alias to clarify the type of functions that will reinterpret
+-- to use for interpretation functions that will be called by `weave`
+type WeaverFor name eff strands coreConstraints =
+  forall mantle core i o.
+  (Entwines (LooseRope mantle core) strands, SatisfiesAll core coreConstraints) =>
+  (forall x y. (LooseRope ('(name, eff) ': mantle) core x y -> core x y)) ->
+  eff i o ->
+  core i o
+
 -- Interpret docker flow
-interpretDockerFlow :: (InRope "external" ExternalFlow (LooseRope mantle core)) => (forall x y. (LooseRope ('("docker", DockerFlow) ': mantle) core x y -> core x y)) -> DockerFlow i o -> core i o
+interpretDockerFlow :: WeaverFor "docker" DockerFlow '[ '("external", ExternalFlow)] '[]
 interpretDockerFlow reinterpret dockerFlow = case dockerFlow of
   DockerFlow (DockerFlowConfig {D.image, D.command, D.args}) ->
     let externalCommand = "docker"
