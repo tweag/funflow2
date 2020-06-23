@@ -60,4 +60,4 @@ someExternalFlow :: Flow () ()
 someExternalFlow = externalFlow (ExternalFlowConfig {E.command = "echo", E.args = ["Hello"], E.env = []})
 
 someDockerFlow :: Flow () ()
-someDockerFlow = dockerFlow (DockerFlowConfig {D.image = "python", D.command = "", D.args = ["-c", "print('Hello')"]})
+someDockerFlow = dockerFlow (DockerFlowConfig {D.image = "python", D.command = "python", D.args = ["-c", "print('Hello')"]})

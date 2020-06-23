@@ -31,3 +31,4 @@ extra-deps:
 nix:
   packages:
     - zlib
+    - docker
