@@ -12,12 +12,17 @@ import Funflow
   )
 -- Standard way of building flows
 import Funflow
-  ( externalFlow,
+  ( -- dockerFlow,
+    externalFlow,
     ioFlow,
     pureFlow,
   )
+-- Required to build a Docker flow
+import Funflow.Flows.Docker (DockerFlowConfig (DockerFlowConfig))
+import qualified Funflow.Flows.Docker as D
 -- Required to build an external flow
-import Funflow.Flows.External (ExternalFlowConfig (ExternalFlowConfig), args, command, env)
+import Funflow.Flows.External (ExternalFlowConfig (ExternalFlowConfig))
+import qualified Funflow.Flows.External as E
 
 main :: IO ()
 main = do
@@ -50,4 +55,7 @@ someIoFlow :: Flow () ()
 someIoFlow = ioFlow $ const $ putStrLn "Some IO operation"
 
 someExternalFlow :: Flow () ()
-someExternalFlow = externalFlow (ExternalFlowConfig {command = "echo", args = ["Hello"], env = []})
+someExternalFlow = externalFlow (ExternalFlowConfig {E.command = "echo", E.args = ["Hello"], E.env = []})
+
+someDockerFlow :: Flow () ()
+someDockerFlow = dockerFlow (DockerFlowConfig {D.image = "python", D.command = "", D.args = ["-c", "print('Hello')"]})

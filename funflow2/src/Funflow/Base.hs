@@ -24,14 +24,17 @@ import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Caching (localStoreWithId)
 import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, SieveTrans, liftKleisliIO)
-import Control.Kernmantle.Rope ((&), perform, runReader, untwine, weave')
+import Control.Kernmantle.Rope ((&), perform, runReader, strand, untwine, weave, weave')
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.IO.Class (MonadIO)
 import Data.CAS.ContentHashable ()
 import Data.CAS.ContentHashable (contentHash)
 import qualified Data.CAS.ContentStore as CS
 import Data.String (fromString)
-import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig (ExternalFlowConfig), args, command)
+import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig (DockerFlowConfig))
+import qualified Funflow.Flows.Docker as D
+import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig (ExternalFlowConfig))
+import qualified Funflow.Flows.External as E
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 import Katip (closeScribes, defaultScribeSettings, initLogEnv, registerScribe, runKatipContextT)
 import Katip (ColorStrategy (ColorIfTerminal), Severity (InfoS), Verbosity (V2), mkHandleScribe, permitItem)
@@ -42,7 +45,8 @@ import System.IO (stdout)
 -- These will be "interpreted" into "core effects" (which have contraints defined below).
 type RequiredStrands =
   '[  '("simple", SimpleFlow),
-      '("external", ExternalFlow)
+      '("external", ExternalFlow),
+      '("docker", DockerFlow)
    ]
 
 -- The class constraints on the "core effect".
@@ -72,6 +76,7 @@ runFlow flow input =
         flow
           -- Weave effects
           & weave' #simple interpretSimpleFlow
+          & weave #docker interpretDockerFlow
           & weave' #external (interpretExternalFlow store)
           -- Strip of empty list of strands (after all weaves)
           & untwine
@@ -90,7 +95,7 @@ interpretSimpleFlow simpleFlow = case simpleFlow of
 -- Interpret external flow
 interpretExternalFlow :: (Arrow a, SieveTrans m a, MonadIO m) => CS.ContentStore -> ExternalFlow i o -> a i o
 interpretExternalFlow store externalFlow = case externalFlow of
-  ExternalFlow (ExternalFlowConfig {command, args}) -> liftKleisliIO $ \_ -> do
+  ExternalFlow (ExternalFlowConfig {E.command, E.args}) -> liftKleisliIO $ \_ -> do
     -- Create the task description (task + cache hash)
     let task :: ExternalTask
         task =
@@ -117,3 +122,12 @@ interpretExternalFlow store externalFlow = case externalFlow of
       runKatipContextT le initialContext initialNamespace $ execute store taskDescription
     -- Done
     return ()
+
+-- Interpret docker flow
+interpretDockerFlow :: DockerFlow i o -> ExternalFlow i o
+interpretDockerFlow dockerFlow = case dockerFlow of
+  DockerFlow (DockerFlowConfig {D.image, D.command, D.args}) ->
+    let externalCommand = "docker"
+        externalArgs = "run" : image : command : args
+        externalEnv = []
+     in strand #external ExternalFlow $ ExternalFlowConfig {E.command = externalCommand, E.args = externalArgs, E.env = externalEnv}

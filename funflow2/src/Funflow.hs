@@ -17,7 +17,8 @@ where
 import Control.Kernmantle.Caching (caching)
 import Funflow.Base (Flow, runFlow)
 import Funflow.Flows
-  ( externalFlow,
+  ( dockerFlow,
+    externalFlow,
     ioFlow,
     pureFlow,
   )

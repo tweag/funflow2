@@ -10,11 +10,13 @@ module Funflow.Flows
   ( pureFlow,
     ioFlow,
     externalFlow,
+    dockerFlow,
   )
 where
 
 import Control.Kernmantle.Rope (strand)
 import Funflow.Base (Flow)
+import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig)
 import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig)
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 
@@ -26,3 +28,6 @@ ioFlow f = strand #simple $ IO f
 
 externalFlow :: ExternalFlowConfig i () -> Flow () ()
 externalFlow config = strand #external $ ExternalFlow config
+
+dockerFlow :: DockerFlowConfig i () -> Flow () ()
+dockerFlow config = strand #docker $ DockerFlow config
