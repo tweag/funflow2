@@ -11,6 +11,7 @@ module Funflow
     pureFlow,
     ioFlow,
     externalFlow,
+    dockerFlow,
   )
 where
 

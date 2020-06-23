@@ -5,6 +5,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Funflow.Base
   ( Flow,
@@ -23,7 +24,7 @@ import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (St
 import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Caching (localStoreWithId)
-import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, SieveTrans, liftKleisliIO)
+import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, InRope, LooseRope, SieveTrans, liftKleisliIO)
 import Control.Kernmantle.Rope ((&), perform, runReader, strand, untwine, weave, weave')
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.IO.Class (MonadIO)
@@ -75,9 +76,9 @@ runFlow flow input =
       CS.withStore defaultPath $ \store -> do
         flow
           -- Weave effects
-          & weave' #simple interpretSimpleFlow
           & weave #docker interpretDockerFlow
           & weave' #external (interpretExternalFlow store)
+          & weave' #simple interpretSimpleFlow
           -- Strip of empty list of strands (after all weaves)
           & untwine
           -- Define the caching
@@ -124,10 +125,10 @@ interpretExternalFlow store externalFlow = case externalFlow of
     return ()
 
 -- Interpret docker flow
-interpretDockerFlow :: DockerFlow i o -> ExternalFlow i o
-interpretDockerFlow dockerFlow = case dockerFlow of
+interpretDockerFlow :: (InRope "external" ExternalFlow (LooseRope mantle core)) => (forall x y. (LooseRope ('("docker", DockerFlow) ': mantle) core x y -> core x y)) -> DockerFlow i o -> core i o
+interpretDockerFlow reinterpret dockerFlow = case dockerFlow of
   DockerFlow (DockerFlowConfig {D.image, D.command, D.args}) ->
     let externalCommand = "docker"
         externalArgs = "run" : image : command : args
         externalEnv = []
-     in strand #external ExternalFlow $ ExternalFlowConfig {E.command = externalCommand, E.args = externalArgs, E.env = externalEnv}
+     in reinterpret $ strand #external $ ExternalFlow $ ExternalFlowConfig {E.command = externalCommand, E.args = externalArgs, E.env = externalEnv}
