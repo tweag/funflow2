@@ -20,6 +20,7 @@ dependencies:
   - kernmantle
   - kernmantle-batteries
   - kernmantle-caching
+  - modern-uri
   - path
   - store
   - text

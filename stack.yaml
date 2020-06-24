@@ -32,3 +32,4 @@ nix:
   packages:
     - zlib
     - docker
+    - nix

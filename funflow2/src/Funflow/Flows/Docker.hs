@@ -7,14 +7,16 @@
  -}
 module Funflow.Flows.Docker where
 
+import Data.Text (Text)
+
 -- Configure what task to run in Docker
-data DockerFlowConfig i o
+data DockerFlowConfig
   = DockerFlowConfig
-      { image :: String,
-        command :: String,
-        args :: [String]
+      { image :: Text,
+        command :: Text,
+        args :: [Text]
       }
 
 -- Docker flows to perform external tasks
 data DockerFlow i o where
-  DockerFlow :: DockerFlowConfig i o -> DockerFlow () ()
+  DockerFlow :: DockerFlowConfig -> DockerFlow () ()

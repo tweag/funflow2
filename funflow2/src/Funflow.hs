@@ -12,6 +12,7 @@ module Funflow
     ioFlow,
     externalFlow,
     dockerFlow,
+    nixFlow,
   )
 where
 
@@ -19,6 +20,7 @@ import Control.Kernmantle.Caching (caching)
 import Funflow.Base (Flow, runFlow)
 import Funflow.Flows
   ( dockerFlow,
+    nixFlow,
     externalFlow,
     ioFlow,
     pureFlow,

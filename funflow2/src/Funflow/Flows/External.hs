@@ -7,14 +7,16 @@
  -}
 module Funflow.Flows.External where
 
+import Data.Text (Text)
+
 -- Configure what external task to run
-data ExternalFlowConfig i o
+data ExternalFlowConfig
   = ExternalFlowConfig
-      { command :: String,
-        args :: [String],
-        env :: [String]
+      { command :: Text,
+        args :: [Text],
+        env :: [(Text, Text)]
       }
 
 -- External flows to perform external tasks
 data ExternalFlow i o where
-  ExternalFlow :: ExternalFlowConfig i o -> ExternalFlow () ()
+  ExternalFlow :: ExternalFlowConfig -> ExternalFlow () ()

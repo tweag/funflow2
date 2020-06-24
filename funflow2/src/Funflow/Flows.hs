@@ -11,12 +11,14 @@ module Funflow.Flows
     ioFlow,
     externalFlow,
     dockerFlow,
+    nixFlow,
   )
 where
 
 import Control.Kernmantle.Rope (strand)
 import Funflow.Base (Flow)
 import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig)
+import Funflow.Flows.Nix (NixFlow (NixFlow), NixFlowConfig)
 import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig)
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 
@@ -31,3 +33,6 @@ externalFlow config = strand #external $ ExternalFlow config
 
 dockerFlow :: DockerFlowConfig i () -> Flow () ()
 dockerFlow config = strand #docker $ DockerFlow config
+
+nixFlow :: NixFlowConfig i () -> Flow () ()
+nixFlow config = strand #nix $ NixFlow config

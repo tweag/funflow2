@@ -13,6 +13,7 @@ import Funflow
 -- Standard way of building flows
 import Funflow
   ( dockerFlow,
+    nixFlow,
     externalFlow,
     ioFlow,
     pureFlow,
@@ -20,6 +21,7 @@ import Funflow
 -- Required to build a Docker flow
 import Funflow.Flows.Docker (DockerFlowConfig (DockerFlowConfig))
 import qualified Funflow.Flows.Docker as D
+import qualified Funflow.Flows.Nix as N
 -- Required to build an external flow
 import Funflow.Flows.External (ExternalFlowConfig (ExternalFlowConfig))
 import qualified Funflow.Flows.External as E
@@ -37,6 +39,8 @@ main = do
   testFlow @() @() "a flow running an external task" someExternalFlow ()
   putStr "\n---------------------\n"
   testFlow @() @() "a flow running an task in docker" someDockerFlow ()
+  putStr "\n------  DONE   ------\n"
+  testFlow @() @() "a flow running an task in a nix shell" someNixFlow ()
   putStr "\n------  DONE   ------\n"
 
 testFlow :: forall i o. (Show i, Show o) => String -> Flow i o -> i -> IO ()
@@ -61,3 +65,6 @@ someExternalFlow = externalFlow (ExternalFlowConfig {E.command = "echo", E.args 
 
 someDockerFlow :: Flow () ()
 someDockerFlow = dockerFlow (DockerFlowConfig {D.image = "python", D.command = "python", D.args = ["-c", "print('Hello')"]})
+
+someNixFlow :: Flow () ()
+someNixFlow = nixFlow (N.NixFlowConfig {N.packages = ["python"], N.command = "python -c \"print('Hello')\"", N.args=[], N.env=[], N.nixpkgsSource=""})

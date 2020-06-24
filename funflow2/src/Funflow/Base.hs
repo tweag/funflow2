@@ -20,7 +20,7 @@ where
 import Control.Arrow (Arrow)
 import Control.Arrow (arr)
 import Control.Exception (bracket)
-import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (StdOutCapture), TaskDescription (..))
+import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (StdOutCapture), Param, ParamField, TaskDescription (..), contentParam, textParam)
 import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Caching (localStoreWithId)
@@ -28,7 +28,6 @@ import Control.Kernmantle.Rope (AnyRopeWith, Entwines, HasKleisli, HasKleisliIO,
 import Control.Kernmantle.Rope ((&), perform, runReader, strand, untwine, weave, weave')
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.IO.Class (MonadIO)
-import Data.CAS.ContentHashable ()
 import Data.CAS.ContentHashable (contentHash)
 import qualified Data.CAS.ContentStore as CS
 import Data.String (fromString)
@@ -36,18 +35,22 @@ import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig (DockerFl
 import qualified Funflow.Flows.Docker as D
 import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig (ExternalFlowConfig))
 import qualified Funflow.Flows.External as E
+import Funflow.Flows.Nix (NixFlow (NixFlow), NixFlowConfig (NixFlowConfig))
+import qualified Funflow.Flows.Nix as N
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 import Katip (closeScribes, defaultScribeSettings, initLogEnv, registerScribe, runKatipContextT)
 import Katip (ColorStrategy (ColorIfTerminal), Severity (InfoS), Verbosity (V2), mkHandleScribe, permitItem)
 import Path (Abs, Dir, absdir)
 import System.IO (stdout)
+import Data.Text (Text)
 
 -- The constraints on the set of "strands"
 -- These will be "interpreted" into "core effects" (which have contraints defined below).
 type RequiredStrands =
   '[  '("simple", SimpleFlow),
       '("external", ExternalFlow),
-      '("docker", DockerFlow)
+      '("docker", DockerFlow),
+      '("nix", NixFlow)
    ]
 
 -- The class constraints on the "core effect".
@@ -77,6 +80,7 @@ runFlow flow input =
         flow
           -- Weave effects
           & weave #docker interpretDockerFlow
+          & weave #nix interpretNixFlow
           & weave' #external (interpretExternalFlow store)
           & weave' #simple interpretSimpleFlow
           -- Strip of empty list of strands (after all weaves)
@@ -96,16 +100,16 @@ interpretSimpleFlow simpleFlow = case simpleFlow of
 -- Interpret external flow
 interpretExternalFlow :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> ExternalFlow i o -> a i o
 interpretExternalFlow store externalFlow = case externalFlow of
-  ExternalFlow (ExternalFlowConfig {E.command, E.args}) -> liftKleisliIO $ \_ -> do
+  ExternalFlow (ExternalFlowConfig {E.command, E.args, E.env}) -> liftKleisliIO $ \_ -> do
     -- Create the task description (task + cache hash)
     let task :: ExternalTask
         task =
           ExternalTask
-            { _etCommand = fromString command,
+            { _etCommand = command,
               -- TODO use input env
-              _etEnv = EnvExplicit [],
+              _etEnv = EnvExplicit [ (x, fromString y) | (x,y) <- env ],
               -- TODO use input args
-              _etParams = [fromString arg | arg <- args],
+              _etParams = fmap fromString args,
               _etWriteToStdOut = StdOutCapture
             }
     hash <- liftIO $ contentHash task
@@ -141,3 +145,16 @@ interpretDockerFlow reinterpret dockerFlow = case dockerFlow of
         externalArgs = "run" : image : command : args
         externalEnv = []
      in reinterpret $ strand #external $ ExternalFlow $ ExternalFlowConfig {E.command = externalCommand, E.args = externalArgs, E.env = externalEnv}
+
+-- Interpret nix flow
+interpretNixFlow :: WeaverFor "nix" NixFlow '[ '("external", ExternalFlow)] '[]
+interpretNixFlow reinterpret nixFlow = case nixFlow of
+  NixFlow (NixFlowConfig {N.nixEnv, N.nixpkgsSource, N.command, N.args, N.env}) ->
+    let externalCommand = "nix-shell"
+        externalArgs = ("--run" : command : args) ++ packageSpec nixEnv 
+        externalEnv = EnvExplicit $ ("NIX_PATH", nixpkgsSourceToParam nixpkgsSource ) : env
+     in reinterpret $ strand #external $ ExternalFlow $ ExternalFlowConfig {E.command = externalCommand, E.args = externalArgs, E.env = externalEnv}
+    where
+      packageSpec :: N.Environment -> [Text]
+      packageSpec (N.ShellFile ip) = [ip]
+      packageSpec (N.PackageList ps) = [("-p " <> p) | p <- ps]
