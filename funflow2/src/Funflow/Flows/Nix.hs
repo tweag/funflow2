@@ -14,9 +14,7 @@ import Data.CAS.ContentHashable
     contentHashUpdate,
     contentHashUpdate_fingerprint,
   )
-import Data.CAS.ContentStore (Content)
 import Data.Text (Text)
-import Path (File)
 import GHC.Generics (Generic)
 import Text.URI (URI)
 import qualified Text.URI as URI
@@ -45,7 +43,7 @@ data NixFlowConfig
 
 data Environment
   = -- | Path to a shell.nix file
-    ShellFile (Content File)
+    ShellFile (Text)
   | -- | A list of packages that
     -- will be passed by @-p@.
     PackageList [Text]

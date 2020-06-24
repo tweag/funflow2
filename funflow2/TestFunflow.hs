@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
@@ -51,7 +52,7 @@ testFlow label flow input = do
 
 someCachedFlow :: Flow () ()
 someCachedFlow = proc () -> do
-  () <- caching "someComputation" $ ioFlow (\() -> putStrLn "This message should appear at most once") -< ()
+  () <- caching ("someComputation" :: String) $ ioFlow (\() -> putStrLn "This message should appear at most once") -< ()
   ioFlow (\() -> putStrLn "If nothing printed, then it works") -< ()
 
 somePureFlow :: Flow Int Int
@@ -67,4 +68,4 @@ someDockerFlow :: Flow () ()
 someDockerFlow = dockerFlow (DockerFlowConfig {D.image = "python", D.command = "python", D.args = ["-c", "print('Hello')"]})
 
 someNixFlow :: Flow () ()
-someNixFlow = nixFlow (N.NixFlowConfig {N.packages = ["python"], N.command = "python -c \"print('Hello')\"", N.args=[], N.env=[], N.nixpkgsSource=""})
+someNixFlow = nixFlow (N.NixFlowConfig {N.nixEnv = N.PackageList ["python"], N.command = "python -c \"print('Hello')\"", N.args=[], N.env=[], N.nixpkgsSource=N.NIX_PATH})

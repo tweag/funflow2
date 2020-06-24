@@ -28,11 +28,11 @@ pureFlow f = strand #simple $ Pure f
 ioFlow :: (i -> IO o) -> Flow i o
 ioFlow f = strand #simple $ IO f
 
-externalFlow :: ExternalFlowConfig i () -> Flow () ()
+externalFlow :: ExternalFlowConfig -> Flow () ()
 externalFlow config = strand #external $ ExternalFlow config
 
-dockerFlow :: DockerFlowConfig i () -> Flow () ()
+dockerFlow :: DockerFlowConfig -> Flow () ()
 dockerFlow config = strand #docker $ DockerFlow config
 
-nixFlow :: NixFlowConfig i () -> Flow () ()
+nixFlow :: NixFlowConfig -> Flow () ()
 nixFlow config = strand #nix $ NixFlow config

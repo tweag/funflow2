@@ -31,6 +31,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Data.CAS.ContentHashable (contentHash)
 import qualified Data.CAS.ContentStore as CS
 import Data.String (fromString)
+import Data.Text (Text, unpack)
 import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig (DockerFlowConfig))
 import qualified Funflow.Flows.Docker as D
 import Funflow.Flows.External (ExternalFlow (ExternalFlow), ExternalFlowConfig (ExternalFlowConfig))
@@ -42,7 +43,7 @@ import Katip (closeScribes, defaultScribeSettings, initLogEnv, registerScribe, r
 import Katip (ColorStrategy (ColorIfTerminal), Severity (InfoS), Verbosity (V2), mkHandleScribe, permitItem)
 import Path (Abs, Dir, absdir)
 import System.IO (stdout)
-import Data.Text (Text)
+import qualified Text.URI as URI
 
 -- The constraints on the set of "strands"
 -- These will be "interpreted" into "core effects" (which have contraints defined below).
@@ -107,9 +108,9 @@ interpretExternalFlow store externalFlow = case externalFlow of
           ExternalTask
             { _etCommand = command,
               -- TODO use input env
-              _etEnv = EnvExplicit [ (x, fromString y) | (x,y) <- env ],
+              _etEnv = EnvExplicit [(x, (fromString . unpack) y) | (x, y) <- env],
               -- TODO use input args
-              _etParams = fmap fromString args,
+              _etParams = fmap (fromString . unpack) args,
               _etWriteToStdOut = StdOutCapture
             }
     hash <- liftIO $ contentHash task
@@ -151,10 +152,13 @@ interpretNixFlow :: WeaverFor "nix" NixFlow '[ '("external", ExternalFlow)] '[]
 interpretNixFlow reinterpret nixFlow = case nixFlow of
   NixFlow (NixFlowConfig {N.nixEnv, N.nixpkgsSource, N.command, N.args, N.env}) ->
     let externalCommand = "nix-shell"
-        externalArgs = ("--run" : command : args) ++ packageSpec nixEnv 
-        externalEnv = EnvExplicit $ ("NIX_PATH", nixpkgsSourceToParam nixpkgsSource ) : env
+        externalArgs = ("--run" : command : args) ++ packageSpec nixEnv
+        externalEnv = ("NIX_PATH", nixpkgsSourceToParam nixpkgsSource) : env
      in reinterpret $ strand #external $ ExternalFlow $ ExternalFlowConfig {E.command = externalCommand, E.args = externalArgs, E.env = externalEnv}
     where
       packageSpec :: N.Environment -> [Text]
       packageSpec (N.ShellFile ip) = [ip]
       packageSpec (N.PackageList ps) = [("-p " <> p) | p <- ps]
+      nixpkgsSourceToParam :: N.NixpkgsSource -> Text 
+      nixpkgsSourceToParam N.NIX_PATH = "$NIX_PATH"
+      nixpkgsSourceToParam (N.NixpkgsTarball uri) = ("nixpkgs=" <> URI.render uri)

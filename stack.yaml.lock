@@ -57,6 +57,9 @@ packages:
     size: 38444
     subdir: kernmantle
     url: https://github.com/tweag/kernmantle/archive/79e5cf5ecfe73f41206aa78930256a2f171bc9b8.tar.gz
+    cabal-file:
+      size: 2519
+      sha256: d76e63d0f72ce69c1960fbc0316c864c869c9003a9f81951fabbf02200771bce
     name: kernmantle
     version: 0.1.0.0
     sha256: baff549e8c0d430769d4b6873b1dfca38fd50b1be0376c42a732b7182c627357
@@ -70,6 +73,9 @@ packages:
     size: 38444
     subdir: batteries
     url: https://github.com/tweag/kernmantle/archive/79e5cf5ecfe73f41206aa78930256a2f171bc9b8.tar.gz
+    cabal-file:
+      size: 1112
+      sha256: b624758901f5a11a030680d1dafafc6c3acf7b3d379703e3159b97690c57b7c8
     name: kernmantle-batteries
     version: 0.1.0.0
     sha256: baff549e8c0d430769d4b6873b1dfca38fd50b1be0376c42a732b7182c627357
@@ -83,6 +89,9 @@ packages:
     size: 38444
     subdir: caching
     url: https://github.com/tweag/kernmantle/archive/79e5cf5ecfe73f41206aa78930256a2f171bc9b8.tar.gz
+    cabal-file:
+      size: 1960
+      sha256: 5fc8007d563b8f8e07b6c7c6f5fed664690d733e235d5f85e23cda2786ff78c1
     name: kernmantle-caching
     version: 0.1.0.0
     sha256: baff549e8c0d430769d4b6873b1dfca38fd50b1be0376c42a732b7182c627357

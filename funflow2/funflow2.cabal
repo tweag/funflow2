@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.1.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1ecddfe68338100f06463bbb976b6e71c07ba51ea2cfc191a74e533f4e3f3e51
+-- hash: e4325dcd07aba3afff21f99870d643eb90e3a94dc3c78dd6be84eaab86b4f0c6
 
 name:           funflow2
 version:        0.1.0
@@ -28,6 +28,7 @@ library
       Funflow.Flows
       Funflow.Flows.Docker
       Funflow.Flows.External
+      Funflow.Flows.Nix
       Funflow.Flows.Simple
   other-modules:
       Paths_funflow2
@@ -46,6 +47,7 @@ library
     , kernmantle
     , kernmantle-batteries
     , kernmantle-caching
+    , modern-uri
     , path
     , store
     , text
@@ -70,6 +72,7 @@ test-suite test-funflow
     , kernmantle
     , kernmantle-batteries
     , kernmantle-caching
+    , modern-uri
     , path
     , store
     , text
