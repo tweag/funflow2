@@ -27,19 +27,18 @@ data NixpkgsSource
   deriving (Generic)
 
 -- Configure what task to run in Docker
-data NixFlowConfig
-  = NixFlowConfig
-      { -- | Specification of the nix environment
-        nixEnv :: Environment, 
-        -- | Which version of nixpkgs to use
-        nixpkgsSource :: NixpkgsSource,
-        -- | The command to run in the environment
-        command :: Text,
-        -- | Arguments to pass to the command
-        args :: [Text],
-        -- | Environmental variables which are set in the environment
-        env :: [(Text, Text)]
-      }
+data NixFlowConfig = NixFlowConfig
+  { -- | Specification of the nix environment
+    nixEnv :: Environment,
+    -- | Which version of nixpkgs to use
+    nixpkgsSource :: NixpkgsSource,
+    -- | The command to run in the environment
+    command :: Text,
+    -- | Arguments to pass to the command
+    args :: [Text],
+    -- | Environmental variables which are set in the environment
+    env :: [(Text, Text)]
+  }
 
 data Environment
   = -- | Path to a shell.nix file
@@ -50,10 +49,10 @@ data Environment
   deriving (Generic)
 
 -- instances for cashing
-instance ContentHashable IO Environment where
+instance ContentHashable IO Environment
 
 instance ContentHashable IO NixpkgsSource where
-  contentHashUpdate ctx NIX_PATH           = contentHashUpdate_fingerprint ctx NIX_PATH
+  contentHashUpdate ctx NIX_PATH = contentHashUpdate_fingerprint ctx NIX_PATH
   contentHashUpdate ctx (NixpkgsTarball s) = contentHashUpdate ctx (URI.render s)
 
 -- Docker flows to perform external tasks

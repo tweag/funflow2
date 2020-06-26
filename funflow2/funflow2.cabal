@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.2.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e4325dcd07aba3afff21f99870d643eb90e3a94dc3c78dd6be84eaab86b4f0c6
+-- hash: f421e817bedfd68327af1da84ecfda13cad8a06f9b263f8b04936b1187a96e87
 
 name:           funflow2
 version:        0.1.0
@@ -26,8 +26,9 @@ library
       Funflow
       Funflow.Base
       Funflow.Flows
+      Funflow.Flows.Command
       Funflow.Flows.Docker
-      Funflow.Flows.External
+      Funflow.Flows.Executor
       Funflow.Flows.Nix
       Funflow.Flows.Simple
   other-modules:
@@ -49,6 +50,7 @@ library
     , kernmantle-caching
     , modern-uri
     , path
+    , process
     , store
     , text
   default-language: Haskell2010
@@ -74,6 +76,7 @@ test-suite test-funflow
     , kernmantle-caching
     , modern-uri
     , path
+    , process
     , store
     , text
   default-language: Haskell2010

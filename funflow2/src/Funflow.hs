@@ -10,7 +10,8 @@ module Funflow
     -- Helpers to make flows in an idiomatic way
     pureFlow,
     ioFlow,
-    externalFlow,
+    shellFlow,
+    executorFlow,
     dockerFlow,
     nixFlow,
   )
@@ -20,8 +21,9 @@ import Control.Kernmantle.Caching (caching)
 import Funflow.Base (Flow, runFlow)
 import Funflow.Flows
   ( dockerFlow,
-    nixFlow,
-    externalFlow,
+    executorFlow,
     ioFlow,
+    nixFlow,
     pureFlow,
+    shellFlow,
   )
