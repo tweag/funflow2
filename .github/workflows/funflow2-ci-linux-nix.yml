@@ -1,10 +1,10 @@
-name: nix-linux
+name: funflow2 CI (Linux, Nix)
 
 on: [push]
 
 jobs:
   build:
-    name: funflow2-build
+    name: funflow2 [build >> tests >> doc]
     runs-on: ubuntu-latest
     steps:
       # Setup
