@@ -7,17 +7,24 @@ jobs:
     name: funflow2-build
     runs-on: ubuntu-latest
     steps:
+      # Setup
       - uses: actions/checkout@v2
       - uses: cachix/install-nix-action@v9
         with:
-          skip_adding_nixpkgs_channel: true
+          skip_adding_nixpkgs_channel: true    
       - uses: cachix/cachix-action@v6
         with:
           name: tweag-funflow2
           signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-      - run: nix-build ./nix -A build
-      - run: nix-build ./nix -A test
-      - run: nix-build ./nix -A doc
+      # Builds
+      - run: nix-build nix -A funflow2.components.library
+      - run: nix-build nix -A funflow2.components.exes
+      - run: |
+          echo Building tests
+          TESTS_PATH=$(nix-build nix -A funflow2.components.tests)
+          echo Running tests
+          $TESTS_PATH/bin/test-funflow
+      # Deploy documentation to a github page
       - name: deploy-doc
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: peaceiris/actions-gh-pages@v3
