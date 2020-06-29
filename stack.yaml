@@ -5,12 +5,6 @@ packages:
   - cas/s3
   - cas/store
   - external-executor
-  - funflow
-  - funflow-aws
-  - funflow-checkpoints
-  - funflow-cwl
-  - funflow-examples
-  - funflow-jobs
   - funflow2
 
 extra-deps:
