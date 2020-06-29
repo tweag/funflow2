@@ -4,6 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
+    name: funflow2-build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -14,5 +15,12 @@ jobs:
         with:
           name: tweag-funflow2
           signingKey: '${{ secrets.CACHIX_SIGNING_KEY }}'
-      - run: nix-build tests -A build
-
+      - run: nix-build ./nix -A build
+      - run: nix-build ./nix -A test
+      - run: nix-build ./nix -A doc
+      - name: deploy-doc
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          publish_dir: ./doc
