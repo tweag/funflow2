@@ -20,14 +20,16 @@ jobs:
       - run: nix-build nix -A funflow2.components.library
       - run: nix-build nix -A funflow2.components.exes
       - run: |
-          echo Building tests
+          echo Build tests
           TESTS_PATH=$(nix-build nix -A funflow2.components.tests)
           echo Running tests
           $TESTS_PATH/bin/test-funflow
+      # Build documentation and create symlink to ./result-doc
+      - run: nix-build -o result nix -A funflow2.components.library.doc
       # Deploy documentation to a github page
       - name: deploy-doc
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: peaceiris/actions-gh-pages@v3
         with:
           deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
-          publish_dir: ./doc
+          publish_dir: ./docs-doc/share/doc/funflow2/html

@@ -20,4 +20,6 @@ pkgs.haskell-nix.stackProject {
     name = "funflow2-project";
     src = ./..;
   };
+
+  doHaddock = true;
 }
