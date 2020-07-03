@@ -1,14 +1,14 @@
 let
     pkgs = import ./nixpkgs.nix {};
 
-    base = import ./default.nix;
-    base-doc = base.funflow2.components.library.doc;
+    project = import ./default.nix;
+    funflow2-lib-doc = project.funflow2.components.library.doc;
 in
     pkgs.runCommand
-        "${base-doc.name}-url-corrected"
+        "${funflow2-lib-doc.name}-url-corrected"
         { }
         ''
-            cp -R ${base-doc}/* $out
+            cp -R ${funflow2-lib-doc}/* $out
             find $out -exec chmod 755 {} \;
             find $out -type f \
                 -exec sed -i -e \
