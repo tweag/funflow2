@@ -4,22 +4,21 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: f421e817bedfd68327af1da84ecfda13cad8a06f9b263f8b04936b1187a96e87
+-- hash: 935b97cd0bb5c7d313a0ee98c1b40284b7816299a52985f1720646f7de2acc73
 
 name:           funflow2
 version:        0.1.0
 synopsis:       Make composable workflows
-description:    See README at <https://github.com/tweag/funflow/funflow2>
+description:    See README at <https://github.com/tweag/funflow2>
 category:       Development
-homepage:       https://github.com/tweag/funflow#readme
-bug-reports:    https://github.com/tweag/funflow/issues
+homepage:       https://github.com/tweag/funflow2#readme
+bug-reports:    https://github.com/tweag/funflow2/issues
 maintainer:     Guillaume Desforges <guillaume.desforges@tweag.io>
 build-type:     Simple
 
 source-repository head
   type: git
-  location: https://github.com/tweag/funflow
-  subdir: funflow2
+  location: https://github.com/tweag/funflow2
 
 library
   exposed-modules:

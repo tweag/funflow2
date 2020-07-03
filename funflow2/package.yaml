@@ -1,9 +1,9 @@
 name: funflow2
 version: 0.1.0
 synopsis: Make composable workflows
-description: See README at <https://github.com/tweag/funflow/funflow2>
+description: See README at <https://github.com/tweag/funflow2>
 maintainer: Guillaume Desforges <guillaume.desforges@tweag.io>
-github: tweag/funflow/funflow2
+github: tweag/funflow2
 category: Development
 
 ghc-options: -Wall
