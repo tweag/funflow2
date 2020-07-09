@@ -1,4 +1,5 @@
 {
   "nixEnvSelector.nixShellConfig": "${workspaceRoot}/shell-dev.nix",
-  "languageServerHaskell.hieVariant": "ghcide"
+  "languageServerHaskell.hieVariant": "haskell-language-server",
+  "editor.formatOnSave": true
 }

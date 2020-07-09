@@ -1,6 +1,7 @@
-{ nixpkgs ? <nixpkgs>,
-  ghcide ? true,
-  python-language-server ? true,
+{ nixpkgs ? <nixpkgs>
+, ghcide ? false
+, haskellLanguageServer ? true
+, python-language-server ? true
 }:
 let
   pkgs = import nixpkgs { };
@@ -11,7 +12,7 @@ let
       (builtins.fetchGit {
         url = "git@github.com:tweag/nix-dev-shells.git";
         name = "nix-dev-shell";
-        rev = "97c533d9e38cb4d32a68449cbfc2f90af99c94fb";
+        rev = "9dbca810bc4dd243fc5a62bd0eef81898798e286";
       })
     # Use your own version of nixpkgs
     { inherit pkgs; }
@@ -23,14 +24,15 @@ in
       # Common packages (e.g. tmate, git, ...)
       ( common { } )
       # Vim
-      ++ ( vim { languageClient = true; languageClientOptions = { inherit ghcide python-language-server; }; } )
+      ++ ( vim { languageClient = true; languageClientOptions = { inherit ghcide haskellLanguageServer python-language-server; }; } )
       # Standard Haskell dev environment
       ++
         (
           haskell
             {
-              inherit ghcide;
+              inherit ghcide haskellLanguageServer;
               ghcideVersionSelector = ghcidePkgs: ghcidePkgs.ghcide-ghc883;
+              haskellLanguageServerGhcVersion = "ghc883";
             }
         )
       # Python dev environment with packages
