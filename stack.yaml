@@ -6,7 +6,7 @@ packages:
   - cas/store
   - external-executor
   - funflow2
-  - funflow2/tutorial
+  - funflow2-tutorial
 
 extra-deps:
   - aws-0.22

@@ -16,9 +16,9 @@ cradle:
               - path: ./funflow2
                 config:
                   cradle: { stack: {component: "funflow2"} }
-              - path: ./funflow2/tutorial/lib
-                config:
-                  cradle: { stack: {component: "funflow2-tutorial"} }
-              - path: ./funflow2/tutorial/src
-                config:
-                  cradle: { none: }
+    - path: ./funflow2-tutorial/lib
+      config:
+        cradle: { stack: {component: "funflow2-tutorial"} }
+    - path: ./funflow2-tutorial/src
+      config:
+        cradle: { none: }
