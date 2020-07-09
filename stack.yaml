@@ -30,7 +30,5 @@ extra-deps:
   - vinyl-0.12.2
 
 nix:
-  packages:
-    - zlib
-    - docker
-    - nix
+  enable: true
+  shell-file: shell.nix

@@ -41,9 +41,9 @@ main = do
   putStr "\n---------------------\n"
   testFlow @() @() "a flow with caching" someCachedFlow ()
   putStr "\n---------------------\n"
-  testFlow @() @() "a flow running a command in shell" someShellFlow ()
+  testFlow @() @() "a flow running a shell string command" someShellFlow ()
   putStr "\n---------------------\n"
-  testFlow @() @() "a flow running an executor task" someExecutorFlow ()
+  testFlow @() @() "a flow running a command" someCommandFlow ()
   putStr "\n---------------------\n"
   testFlow @() @() "a flow running a task in docker" someDockerFlow ()
   putStr "\n---------------------\n"
@@ -72,13 +72,13 @@ someIoFlow :: Flow () ()
 someIoFlow = ioFlow $ const $ putStrLn "Some IO operation"
 
 someShellFlow :: Flow () ()
-someShellFlow = shellFlow "echo If this prints, then shell flow works"
+someShellFlow = shellFlow "echo someShellFlow worked"
 
-someExecutorFlow :: Flow () ()
-someExecutorFlow = commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["Hello"], CF.env = []})
+someCommandFlow :: Flow () ()
+someCommandFlow = commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["someCommandFlow worked"], CF.env = []})
 
 someDockerFlow :: Flow () ()
-someDockerFlow = dockerFlow (DockerFlowConfig {DF.image = "python", DF.command = "python", DF.args = ["-c", "print('Hello')"]})
+someDockerFlow = dockerFlow (DockerFlowConfig {DF.image = "python", DF.command = "python", DF.args = ["-c", "print('someDockerFlow worked')"]})
 
 someNixFlow :: Flow () ()
-someNixFlow = nixFlow (NF.NixFlowConfig {NF.nixEnv = NF.PackageList ["python"], NF.command = "python -c \"print('Hello')\"", NF.args = [], NF.env = [], NF.nixpkgsSource = NF.NIX_PATH})
+someNixFlow = nixFlow (NF.NixFlowConfig {NF.nixEnv = NF.PackageList ["python"], NF.command = "python -c \"print('someNixFlow worked')\"", NF.args = [], NF.env = [], NF.nixpkgsSource = NF.NIX_PATH})
