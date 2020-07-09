@@ -9,40 +9,32 @@
 
 module Funflow.Base
   ( Flow,
-    RequiredStrands,
-    RequiredCoreEffects,
+    FlowExecutionConfig (..),
+    CommandExecutionHandler (..),
     runFlow,
-    interpretSimpleFlow,
-    interpretExecutorFlow,
   )
 where
 
-import Control.Arrow (Arrow)
-import Control.Arrow (arr)
+import Control.Arrow (Arrow, arr)
 import Control.Exception (bracket)
 import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (StdOutCapture), TaskDescription (..))
 import Control.External.Executor (execute)
-import Control.Kernmantle.Caching (ProvidesCaching)
-import Control.Kernmantle.Caching (localStoreWithId)
-import Control.Kernmantle.Rope (AnyRopeWith, Entwines, HasKleisli, HasKleisliIO, LooseRope, SatisfiesAll, liftKleisliIO)
-import Control.Kernmantle.Rope ((&), perform, runReader, strand, untwine, weave, weave')
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.IO.Class (MonadIO)
+import Control.Kernmantle.Caching (ProvidesCaching, localStoreWithId)
+import Control.Kernmantle.Rope (AnyRopeWith, Entwines, HasKleisli, HasKleisliIO, LooseRope, SatisfiesAll, liftKleisliIO, perform, runReader, strand, untwine, weave, weave', (&))
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.CAS.ContentHashable (contentHash)
 import qualified Data.CAS.ContentStore as CS
 import Data.String (fromString)
-import qualified Data.Text as T
 import Data.Text (Text, unpack)
-import Funflow.Flows.Command (CommandFlow (ShellCommandFlow))
+import qualified Data.Text as T
+import Funflow.Flows.Command (CommandFlow (CommandFlow, ShellCommandFlow), CommandFlowConfig (CommandFlowConfig))
+import qualified Funflow.Flows.Command as CF
 import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig (DockerFlowConfig))
-import qualified Funflow.Flows.Docker as D
-import Funflow.Flows.Executor (ExecutorFlow (ExecutorFlow), ExecutorFlowConfig (ExecutorFlowConfig))
-import qualified Funflow.Flows.Executor as E
+import qualified Funflow.Flows.Docker as DF
 import Funflow.Flows.Nix (NixFlow (NixFlow), NixFlowConfig (NixFlowConfig))
-import qualified Funflow.Flows.Nix as N
+import qualified Funflow.Flows.Nix as NF
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
-import Katip (closeScribes, defaultScribeSettings, initLogEnv, registerScribe, runKatipContextT)
-import Katip (ColorStrategy (ColorIfTerminal), Severity (InfoS), Verbosity (V2), mkHandleScribe, permitItem)
+import Katip (ColorStrategy (ColorIfTerminal), Severity (InfoS), Verbosity (V2), closeScribes, defaultScribeSettings, initLogEnv, mkHandleScribe, permitItem, registerScribe, runKatipContextT)
 import Path (Abs, Dir, absdir)
 import System.IO (stdout)
 import System.Process (callCommand)
@@ -53,14 +45,20 @@ import qualified Text.URI as URI
 type RequiredStrands =
   '[ '("simple", SimpleFlow),
      '("command", CommandFlow),
-     '("executor", ExecutorFlow),
      '("docker", DockerFlow),
      '("nix", NixFlow)
    ]
 
 -- The class constraints on the "core effect".
--- The "core effect" is the effect used to run any kind of "user effect" ("strand")
-type RequiredCoreEffects m = '[Arrow, ProvidesCaching, HasKleisli m]
+-- The "core effect" is the effect used to run any kind of "binary effect" ("strand")
+type RequiredCoreEffects m =
+  '[ -- Basic requirement
+     Arrow,
+     -- Support IO
+     HasKleisli m,
+     -- Support caching
+     ProvidesCaching
+   ]
 
 -- Flow is the main type of Funflow.
 -- It is a task that takes an input of type `input` and produces an output of type `output`.
@@ -75,8 +73,18 @@ type Flow input output =
     output
 
 -- Run a flow
-runFlow :: Flow input output -> input -> IO output
-runFlow flow input =
+data FlowExecutionConfig = FlowExecutionConfig
+  { commandExecution :: CommandExecutionHandler
+  -- , executionEnvironment :: CommandExecutionEnvironment
+  }
+
+data CommandExecutionHandler = SystemExecutor | ExternalExecutor
+
+-- data CommandHashStrategy = Smart | Rigorous
+-- data CommandExecutionEnvironment = SystemEnvironment | Nix | Docker
+
+runFlow :: FlowExecutionConfig -> Flow input output -> input -> IO output
+runFlow (FlowExecutionConfig {commandExecution}) flow input =
   let -- TODO choose path
       defaultPath = [absdir|/tmp/funflow/store|]
       defaultCachingId = Just 1
@@ -86,8 +94,13 @@ runFlow flow input =
           -- Weave effects
           & weave #docker interpretDockerFlow
           & weave #nix interpretNixFlow
-          & weave' #executor (interpretExecutorFlow store)
-          & weave' #command interpretCommandFlow
+          & weave'
+            #command
+            ( case commandExecution of
+                SystemExecutor -> interpretCommandFlowVanilla
+                -- change
+                ExternalExecutor -> interpretCommandFlowExternalExecutor store
+            )
           & weave' #simple interpretSimpleFlow
           -- Strip of empty list of strands (after all weaves)
           & untwine
@@ -103,16 +116,17 @@ interpretSimpleFlow simpleFlow = case simpleFlow of
   Pure f -> arr f
   IO f -> liftKleisliIO f
 
--- Interpret command flow
-interpretCommandFlow :: (Arrow a, HasKleisliIO m a) => CommandFlow i o -> a i o
-interpretCommandFlow commandFlow = case commandFlow of
+-- Possible interpreters for the command flow
+interpretCommandFlowVanilla :: (Arrow a, HasKleisliIO m a) => CommandFlow i o -> a i o
+interpretCommandFlowVanilla commandFlow = case commandFlow of
   ShellCommandFlow shellCommand -> liftKleisliIO $
     \() -> callCommand $ T.unpack shellCommand
+  -- TODO
+  CommandFlow _ -> liftKleisliIO $ \() -> return ()
 
--- Interpret executor flow
-interpretExecutorFlow :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> ExecutorFlow i o -> a i o
-interpretExecutorFlow store executorFlow = case executorFlow of
-  ExecutorFlow (ExecutorFlowConfig {E.command, E.args, E.env}) -> liftKleisliIO $ \_ -> do
+interpretCommandFlowExternalExecutor :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> CommandFlow i o -> a i o
+interpretCommandFlowExternalExecutor store commandFlow = case commandFlow of
+  CommandFlow (CommandFlowConfig {CF.command, CF.args, CF.env}) -> liftKleisliIO $ \_ -> do
     -- Create the task description (task + cache hash)
     let task :: ExternalTask
         task =
@@ -137,8 +151,10 @@ interpretExecutorFlow store executorFlow = case executorFlow of
       let initialContext = ()
       let initialNamespace = "funflow"
       runKatipContextT le initialContext initialNamespace $ execute store taskDescription
-    -- Done
+    -- Finish
     return ()
+  -- TODO
+  ShellCommandFlow _ -> liftKleisliIO $ \() -> return ()
 
 -- A type alias to clarify the type of functions that will reinterpret
 -- to use for interpretation functions that will be called by `weave`
@@ -150,26 +166,26 @@ type WeaverFor name eff strands coreConstraints =
   core i o
 
 -- Interpret docker flow
-interpretDockerFlow :: WeaverFor "docker" DockerFlow '[ '("executor", ExecutorFlow)] '[]
+interpretDockerFlow :: WeaverFor "docker" DockerFlow '[ '("command", CommandFlow)] '[]
 interpretDockerFlow reinterpret dockerFlow = case dockerFlow of
-  DockerFlow (DockerFlowConfig {D.image, D.command, D.args}) ->
+  DockerFlow (DockerFlowConfig {DF.image, DF.command, DF.args}) ->
     let executorCommand = "docker"
         executorArgs = "run" : image : command : args
         executorEnv = []
-     in reinterpret $ strand #executor $ ExecutorFlow $ ExecutorFlowConfig {E.command = executorCommand, E.args = executorArgs, E.env = executorEnv}
+     in reinterpret $ strand #command $ CommandFlow $ CommandFlowConfig {CF.command = executorCommand, CF.args = executorArgs, CF.env = executorEnv}
 
 -- Interpret nix flow
-interpretNixFlow :: WeaverFor "nix" NixFlow '[ '("executor", ExecutorFlow)] '[]
+interpretNixFlow :: WeaverFor "nix" NixFlow '[ '("command", CommandFlow)] '[]
 interpretNixFlow reinterpret nixFlow = case nixFlow of
-  NixFlow (NixFlowConfig {N.nixEnv, N.nixpkgsSource, N.command, N.args, N.env}) ->
+  NixFlow (NixFlowConfig {NF.nixEnv, NF.nixpkgsSource, NF.command, NF.args, NF.env}) ->
     let executorCommand = "nix-shell"
         executorArgs = ("--run" : command : args) ++ packageSpec nixEnv
         executorEnv = ("NIX_PATH", nixpkgsSourceToParam nixpkgsSource) : env
-     in reinterpret $ strand #executor $ ExecutorFlow $ ExecutorFlowConfig {E.command = executorCommand, E.args = executorArgs, E.env = executorEnv}
+     in reinterpret $ strand #command $ CommandFlow $ CommandFlowConfig {CF.command = executorCommand, CF.args = executorArgs, CF.env = executorEnv}
     where
-      packageSpec :: N.Environment -> [Text]
-      packageSpec (N.ShellFile ip) = [ip]
-      packageSpec (N.PackageList ps) = [("-p " <> p) | p <- ps]
-      nixpkgsSourceToParam :: N.NixpkgsSource -> Text
-      nixpkgsSourceToParam N.NIX_PATH = "$NIX_PATH"
-      nixpkgsSourceToParam (N.NixpkgsTarball uri) = ("nixpkgs=" <> URI.render uri)
+      packageSpec :: NF.Environment -> [Text]
+      packageSpec (NF.ShellFile ip) = [ip]
+      packageSpec (NF.PackageList ps) = [("-p " <> p) | p <- ps]
+      nixpkgsSourceToParam :: NF.NixpkgsSource -> Text
+      nixpkgsSourceToParam NF.NIX_PATH = "$NIX_PATH"
+      nixpkgsSourceToParam (NF.NixpkgsTarball uri) = ("nixpkgs=" <> URI.render uri)

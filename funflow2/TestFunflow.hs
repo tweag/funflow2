@@ -6,27 +6,30 @@
 {-# LANGUAGE TypeApplications #-}
 
 -- Common imports
-import Funflow
-  ( Flow,
-    caching,
-    runFlow,
-  )
+
 -- Standard way of building flows
 import Funflow
-  ( dockerFlow,
-    executorFlow,
+  ( CommandExecutionHandler (SystemExecutor),
+    Flow,
+    FlowExecutionConfig (FlowExecutionConfig),
+    caching,
+    commandExecution,
+    commandFlow,
+    dockerFlow,
     ioFlow,
     nixFlow,
     pureFlow,
+    runFlow,
     shellFlow,
   )
 -- Required to build a Docker flow
-import Funflow.Flows.Docker (DockerFlowConfig (DockerFlowConfig))
-import qualified Funflow.Flows.Docker as D
+
 -- Required to build an executor flow
-import Funflow.Flows.Executor (ExecutorFlowConfig (ExecutorFlowConfig))
-import qualified Funflow.Flows.Executor as E
-import qualified Funflow.Flows.Nix as N
+import Funflow.Flows.Command (CommandFlowConfig (CommandFlowConfig))
+import qualified Funflow.Flows.Command as CF
+import Funflow.Flows.Docker (DockerFlowConfig (DockerFlowConfig))
+import qualified Funflow.Flows.Docker as DF
+import qualified Funflow.Flows.Nix as NF
 
 main :: IO ()
 main = do
@@ -47,10 +50,13 @@ main = do
   testFlow @() @() "a flow running a task in a nix shell" someNixFlow ()
   putStr "\n------  DONE   ------\n"
 
+testFlowConfig :: FlowExecutionConfig
+testFlowConfig = FlowExecutionConfig {commandExecution = SystemExecutor}
+
 testFlow :: forall i o. (Show i, Show o) => String -> Flow i o -> i -> IO ()
 testFlow label flow input = do
   putStrLn $ "Testing " ++ label
-  result <- runFlow @i @o flow input
+  result <- runFlow @i @o testFlowConfig flow input
   putStrLn $ "Got " ++ (show result) ++ " from input " ++ (show input)
 
 someCachedFlow :: Flow () ()
@@ -69,10 +75,10 @@ someShellFlow :: Flow () ()
 someShellFlow = shellFlow "echo If this prints, then shell flow works"
 
 someExecutorFlow :: Flow () ()
-someExecutorFlow = executorFlow (ExecutorFlowConfig {E.command = "echo", E.args = ["Hello"], E.env = []})
+someExecutorFlow = commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["Hello"], CF.env = []})
 
 someDockerFlow :: Flow () ()
-someDockerFlow = dockerFlow (DockerFlowConfig {D.image = "python", D.command = "python", D.args = ["-c", "print('Hello')"]})
+someDockerFlow = dockerFlow (DockerFlowConfig {DF.image = "python", DF.command = "python", DF.args = ["-c", "print('Hello')"]})
 
 someNixFlow :: Flow () ()
-someNixFlow = nixFlow (N.NixFlowConfig {N.nixEnv = N.PackageList ["python"], N.command = "python -c \"print('Hello')\"", N.args = [], N.env = [], N.nixpkgsSource = N.NIX_PATH})
+someNixFlow = nixFlow (NF.NixFlowConfig {NF.nixEnv = NF.PackageList ["python"], NF.command = "python -c \"print('Hello')\"", NF.args = [], NF.env = [], NF.nixpkgsSource = NF.NIX_PATH})

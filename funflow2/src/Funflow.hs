@@ -4,6 +4,8 @@
 module Funflow
   ( -- Basics
     Flow,
+    FlowExecutionConfig (..),
+    CommandExecutionHandler (..),
     runFlow,
     -- Caching
     caching,
@@ -11,17 +13,17 @@ module Funflow
     pureFlow,
     ioFlow,
     shellFlow,
-    executorFlow,
+    commandFlow,
     dockerFlow,
     nixFlow,
   )
 where
 
 import Control.Kernmantle.Caching (caching)
-import Funflow.Base (Flow, runFlow)
+import Funflow.Base (CommandExecutionHandler (..), Flow, FlowExecutionConfig (..), runFlow)
 import Funflow.Flows
-  ( dockerFlow,
-    executorFlow,
+  ( commandFlow,
+    dockerFlow,
     ioFlow,
     nixFlow,
     pureFlow,

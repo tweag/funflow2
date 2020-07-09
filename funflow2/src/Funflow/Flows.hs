@@ -10,7 +10,7 @@ module Funflow.Flows
   ( pureFlow,
     ioFlow,
     shellFlow,
-    executorFlow,
+    commandFlow,
     dockerFlow,
     nixFlow,
   )
@@ -19,9 +19,8 @@ where
 import Control.Kernmantle.Rope (strand)
 import Data.Text (Text)
 import Funflow.Base (Flow)
-import Funflow.Flows.Command (CommandFlow (ShellCommandFlow))
+import Funflow.Flows.Command (CommandFlow (CommandFlow, ShellCommandFlow), CommandFlowConfig)
 import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig)
-import Funflow.Flows.Executor (ExecutorFlow (ExecutorFlow), ExecutorFlowConfig)
 import Funflow.Flows.Nix (NixFlow (NixFlow), NixFlowConfig)
 import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 
@@ -34,8 +33,8 @@ ioFlow f = strand #simple $ IO f
 shellFlow :: Text -> Flow () ()
 shellFlow config = strand #command $ ShellCommandFlow config
 
-executorFlow :: ExecutorFlowConfig -> Flow () ()
-executorFlow config = strand #executor $ ExecutorFlow config
+commandFlow :: CommandFlowConfig -> Flow () ()
+commandFlow config = strand #command $ CommandFlow config
 
 dockerFlow :: DockerFlowConfig -> Flow () ()
 dockerFlow config = strand #docker $ DockerFlow config

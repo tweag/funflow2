@@ -10,14 +10,13 @@ module Funflow.Flows.Command where
 import Data.Text (Text)
 
 -- Configure what command to run
--- data RawCommandFlowConfig
---   = CommandFlowConfig
---       { command :: Text,
---         args :: [Text]
---         -- env :: [(Text, Text)]
---       }
+data CommandFlowConfig = CommandFlowConfig
+  { command :: Text,
+    args :: [Text],
+    env :: [(Text, Text)]
+  }
 
 -- Command flows to run a command
 data CommandFlow i o where
-  -- RawCommandFlow :: RawCommandFlowConfig -> CommandFlow () ()
+  CommandFlow :: CommandFlowConfig -> CommandFlow () ()
   ShellCommandFlow :: Text -> CommandFlow () ()
