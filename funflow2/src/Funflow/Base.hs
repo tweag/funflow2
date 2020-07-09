@@ -37,7 +37,7 @@ import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
 import Katip (ColorStrategy (ColorIfTerminal), Severity (InfoS), Verbosity (V2), closeScribes, defaultScribeSettings, initLogEnv, mkHandleScribe, permitItem, registerScribe, runKatipContextT)
 import Path (Abs, Dir, absdir)
 import System.IO (stdout)
-import System.Process (callCommand)
+import System.Process (callCommand, callProcess)
 import qualified Text.URI as URI
 
 -- The constraints on the set of "strands"
@@ -97,7 +97,7 @@ runFlow (FlowExecutionConfig {commandExecution}) flow input =
           & weave'
             #command
             ( case commandExecution of
-                SystemExecutor -> interpretCommandFlowVanilla
+                SystemExecutor -> interpretCommandFlowSystemExecutor
                 -- change
                 ExternalExecutor -> interpretCommandFlowExternalExecutor store
             )
@@ -117,44 +117,66 @@ interpretSimpleFlow simpleFlow = case simpleFlow of
   IO f -> liftKleisliIO f
 
 -- Possible interpreters for the command flow
-interpretCommandFlowVanilla :: (Arrow a, HasKleisliIO m a) => CommandFlow i o -> a i o
-interpretCommandFlowVanilla commandFlow = case commandFlow of
-  ShellCommandFlow shellCommand -> liftKleisliIO $
-    \() -> callCommand $ T.unpack shellCommand
-  -- TODO
-  CommandFlow _ -> liftKleisliIO $ \() -> return ()
 
+-- System executor: just spawn processes
+interpretCommandFlowSystemExecutor :: (Arrow a, HasKleisliIO m a) => CommandFlow i o -> a i o
+interpretCommandFlowSystemExecutor commandFlow = case commandFlow of
+  CommandFlow (CommandFlowConfig {CF.command, CF.args}) -> liftKleisliIO $
+    \() ->
+      callProcess
+        (T.unpack command)
+        (map T.unpack args)
+  ShellCommandFlow shellCommand -> liftKleisliIO $
+    \() ->
+      callCommand $ T.unpack shellCommand
+
+-- External executor: use the external-executor package
+-- TODO currently little to no benefits, need to allow setting SQL, Redis, etc
 interpretCommandFlowExternalExecutor :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> CommandFlow i o -> a i o
-interpretCommandFlowExternalExecutor store commandFlow = case commandFlow of
-  CommandFlow (CommandFlowConfig {CF.command, CF.args, CF.env}) -> liftKleisliIO $ \_ -> do
-    -- Create the task description (task + cache hash)
-    let task :: ExternalTask
-        task =
-          ExternalTask
-            { _etCommand = command,
-              -- TODO use input env
-              _etEnv = EnvExplicit [(x, (fromString . unpack) y) | (x, y) <- env],
-              -- TODO use input args
-              _etParams = fmap (fromString . unpack) args,
-              _etWriteToStdOut = StdOutCapture
-            }
-    hash <- liftIO $ contentHash task
-    let taskDescription =
-          TaskDescription
-            { _tdOutput = hash,
-              _tdTask = task
-            }
-    -- Katip machinery
-    handleScribe <- liftIO $ mkHandleScribe ColorIfTerminal stdout (permitItem InfoS) V2
-    let makeLogEnv = registerScribe "stdout" handleScribe defaultScribeSettings =<< initLogEnv "funflow" "executor"
-    bracket makeLogEnv closeScribes $ \le -> do
-      let initialContext = ()
-      let initialNamespace = "funflow"
-      runKatipContextT le initialContext initialNamespace $ execute store taskDescription
-    -- Finish
-    return ()
-  -- TODO
-  ShellCommandFlow _ -> liftKleisliIO $ \() -> return ()
+interpretCommandFlowExternalExecutor store commandFlow =
+  let runTask :: (Arrow a, HasKleisliIO m a) => ExternalTask -> a i ()
+      runTask task = liftKleisliIO $ \_ -> do
+        -- Hash computation
+        hash <- liftIO $ contentHash task
+        let taskDescription =
+              TaskDescription
+                { _tdOutput = hash,
+                  _tdTask = task
+                }
+        -- Katip machinery
+        handleScribe <- liftIO $ mkHandleScribe ColorIfTerminal stdout (permitItem InfoS) V2
+        let makeLogEnv = registerScribe "stdout" handleScribe defaultScribeSettings =<< initLogEnv "funflow" "executor"
+        bracket makeLogEnv closeScribes $ \le -> do
+          let initialContext = ()
+          let initialNamespace = "funflow"
+          runKatipContextT le initialContext initialNamespace $ execute store taskDescription
+        -- Finish
+        return ()
+   in case commandFlow of
+        CommandFlow (CommandFlowConfig {CF.command, CF.args, CF.env}) ->
+          -- Create the task description (task + cache hash)
+          let task :: ExternalTask
+              task =
+                ExternalTask
+                  { _etCommand = command,
+                    -- TODO use input env
+                    _etEnv = EnvExplicit [(x, (fromString . unpack) y) | (x, y) <- env],
+                    -- TODO use input args
+                    _etParams = fmap (fromString . unpack) args,
+                    _etWriteToStdOut = StdOutCapture
+                  }
+           in runTask task
+        ShellCommandFlow shellCommand ->
+          let task =
+                ExternalTask
+                  { _etCommand = shellCommand,
+                    -- TODO use input env
+                    _etEnv = EnvExplicit [],
+                    -- TODO use input args
+                    _etParams = [],
+                    _etWriteToStdOut = StdOutCapture
+                  }
+           in runTask task
 
 -- A type alias to clarify the type of functions that will reinterpret
 -- to use for interpretation functions that will be called by `weave`
