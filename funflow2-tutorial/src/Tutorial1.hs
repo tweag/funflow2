@@ -17,7 +17,14 @@ We need to use the following pragmas:
 First we import funflow2:
 
 ```haskell top
-import Funflow (Flow, pureFlow, runFlow)
+import Funflow (
+    Flow
+  , pureFlow
+  , FlowExecutionConfig (FlowExecutionConfig)
+  , commandExecution
+  , CommandExecutionHandler (SystemExecutor)
+  , runFlow
+  )
 ```
 
 We then define a flow:
@@ -27,10 +34,17 @@ flow :: Flow () String
 flow = pureFlow $ \() -> "Hello world"
 ```
 
-And finally we can run in a IO monad:
+although our flow is pure, we still need to pass some configuration to the `runFlow` function:
+
+```haskell top
+flowExecutionConfig :: FlowExecutionConfig 
+flowExecutionConfig = FlowExecutionConfig {commandExecution = SystemExecutor}
+```
+
+Finally we can run our flow:
 
 ```haskell eval twocol
-runFlow @() @String flow ()
+runFlow @() @String flowExecutionConfig flow ()
 ```
 
 ## Complete example
@@ -43,5 +57,8 @@ import Funflow (Flow, pureFlow, runFlow)
 flow :: Flow () String
 flow = pureFlow $ \() -> "Hello world"
 
-main = runFlow @() @String flow ()
+flowExecutionConfig :: FlowExecutionConfig 
+flowExecutionConfig = FlowExecutionConfig {commandExecution = SystemExecutor}
+
+main = runFlow @() @String flowExecutionConfig flow ()
 ```
