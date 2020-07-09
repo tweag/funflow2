@@ -50,13 +50,13 @@ main = do
   testFlow @() @() "a flow running a task in a nix shell" someNixFlow ()
   putStr "\n------  DONE   ------\n"
 
-testFlowConfig :: FlowExecutionConfig
-testFlowConfig = FlowExecutionConfig {commandExecution = SystemExecutor}
+testFlowExecutionConfig :: FlowExecutionConfig
+testFlowExecutionConfig = FlowExecutionConfig {commandExecution = SystemExecutor}
 
 testFlow :: forall i o. (Show i, Show o) => String -> Flow i o -> i -> IO ()
 testFlow label flow input = do
   putStrLn $ "Testing " ++ label
-  result <- runFlow @i @o testFlowConfig flow input
+  result <- runFlow @i @o testFlowExecutionConfig flow input
   putStrLn $ "Got " ++ (show result) ++ " from input " ++ (show input)
 
 someCachedFlow :: Flow () ()
