@@ -18,7 +18,7 @@ where
 
 import Control.Kernmantle.Rope (strand)
 import Data.Text (Text)
-import Funflow.Base (Flow)
+import Funflow.Flow (Flow)
 import Funflow.Flows.Command (CommandFlow (CommandFlow, ShellCommandFlow), CommandFlowConfig)
 import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig)
 import Funflow.Flows.Nix (NixFlow (NixFlow), NixFlowConfig)

@@ -7,26 +7,21 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Funflow.Base
-  ( Flow,
-    FlowExecutionConfig (..),
-    CommandExecutionHandler (..),
-    runFlow,
-  )
-where
+module Funflow.Run where
 
 import Control.Arrow (Arrow, arr)
 import Control.Exception (bracket)
 import Control.External (Env (EnvExplicit), ExternalTask (..), OutputCapture (StdOutCapture), TaskDescription (..))
 import Control.External.Executor (execute)
-import Control.Kernmantle.Caching (ProvidesCaching, localStoreWithId)
-import Control.Kernmantle.Rope (AnyRopeWith, Entwines, HasKleisli, HasKleisliIO, LooseRope, SatisfiesAll, liftKleisliIO, perform, runReader, strand, untwine, weave, weave', (&))
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Kernmantle.Caching (localStoreWithId)
+import Control.Kernmantle.Rope (Entwines, HasKleisliIO, LooseRope, SatisfiesAll, liftKleisliIO, perform, runReader, strand, untwine, weave, weave', (&))
+import Control.Monad.IO.Class (liftIO)
 import Data.CAS.ContentHashable (contentHash)
 import qualified Data.CAS.ContentStore as CS
 import Data.String (fromString)
 import Data.Text (Text, unpack)
 import qualified Data.Text as T
+import Funflow.Flow (Flow)
 import Funflow.Flows.Command (CommandFlow (CommandFlow, ShellCommandFlow), CommandFlowConfig (CommandFlowConfig))
 import qualified Funflow.Flows.Command as CF
 import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig (DockerFlowConfig))
@@ -39,38 +34,6 @@ import Path (Abs, Dir, absdir)
 import System.IO (stdout)
 import System.Process (callCommand, callProcess)
 import qualified Text.URI as URI
-
--- The constraints on the set of "strands"
--- These will be "interpreted" into "core effects" (which have contraints defined below).
-type RequiredStrands =
-  '[ '("simple", SimpleFlow),
-     '("command", CommandFlow),
-     '("docker", DockerFlow),
-     '("nix", NixFlow)
-   ]
-
--- The class constraints on the "core effect".
--- The "core effect" is the effect used to run any kind of "binary effect" ("strand")
-type RequiredCoreEffects m =
-  '[ -- Basic requirement
-     Arrow,
-     -- Support IO
-     HasKleisli m,
-     -- Support caching
-     ProvidesCaching
-   ]
-
--- Flow is the main type of Funflow.
--- It is a task that takes an input of type `input` and produces an output of type `output`.
--- It can use any "user effect" ("strand") that is defined in the required strands above.
-type Flow input output =
-  forall m.
-  (MonadIO m) =>
-  AnyRopeWith
-    RequiredStrands
-    (RequiredCoreEffects m)
-    input
-    output
 
 -- Run a flow
 data FlowExecutionConfig = FlowExecutionConfig

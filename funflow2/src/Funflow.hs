@@ -20,7 +20,7 @@ module Funflow
 where
 
 import Control.Kernmantle.Caching (caching)
-import Funflow.Base (CommandExecutionHandler (..), Flow, FlowExecutionConfig (..), runFlow)
+import Funflow.Flow (Flow)
 import Funflow.Flows
   ( commandFlow,
     dockerFlow,
@@ -29,3 +29,4 @@ import Funflow.Flows
     pureFlow,
     shellFlow,
   )
+import Funflow.Run (CommandExecutionHandler (..), FlowExecutionConfig (..), runFlow)
