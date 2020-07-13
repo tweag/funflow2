@@ -24,7 +24,7 @@ jobs:
           TESTS_PATH=$(nix-build nix -A funflow2.components.tests)
           echo Running tests
           $TESTS_PATH/bin/test-funflow
-      # Build documentation and create symlink to ./result-doc
+      # Build documentation and create symlink to ./result-docs
       - run: nix-build -o result-docs nix/docs
       # Deploy documentation to a github page
       - name: deploy-doc
