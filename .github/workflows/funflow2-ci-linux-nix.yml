@@ -28,7 +28,8 @@ jobs:
       - run: nix-build -o result-docs nix/docs
       # Deploy documentation to a github page
       - name: deploy-doc
-        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/funflow2'
+        # TODO uncomment
+        # if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/funflow2'
         uses: peaceiris/actions-gh-pages@v3
         with:
           deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
