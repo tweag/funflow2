@@ -25,11 +25,11 @@ jobs:
           echo Running tests
           $TESTS_PATH/bin/test-funflow
       # Build documentation and create symlink to ./result-doc
-      - run: nix-build -o result-docs nix/docs.nix
+      - run: nix-build -o result-docs nix/docs
       # Deploy documentation to a github page
       - name: deploy-doc
         if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/funflow2'
         uses: peaceiris/actions-gh-pages@v3
         with:
           deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
-          publish_dir: ./result-docs/doc/funflow2/html
+          publish_dir: ./result-docs
