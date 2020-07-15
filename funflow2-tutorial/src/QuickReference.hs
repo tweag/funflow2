@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -F -pgmF inlitpp #-}
 
 ```haskell top hide
-{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 import Lib ()
 ```
@@ -18,67 +18,79 @@ import Funflow
 
 ## 1. A minimal flow
 
-```haskell top
--- A flow from a pure function
-flow :: Flow [Char] [Char]
-flow = pureFlow $ \input -> "Hello " ++ input ++ " !"
--- Some input to run the flow on
-input :: [Char]
-input = "Watson"
-```
-
 ```haskell eval
-runFlow defaultExecutionConfig flow input :: IO [Char]
+    let
+      -- A flow from a pure function
+      -- which takes a `String` as input and outputs a `String`
+      flow :: Flow String String
+      flow = pureFlow $ \input -> "Hello " ++ input ++ " !"
+      
+      -- Some input to run the flow on
+      input :: String
+      input = "Watson"
+    in
+      -- Run the flow with given input
+      -- Returns an `IO output`, here `output` is `String`
+      runFlow defaultExecutionConfig flow input :: IO String
 ```
 
 
 ### 2. Composing flows
 
-```haskell
+```haskell eval
     let
       -- Two flows
+      flow1 :: Flow () String
       flow1 = pureFlow $ \input -> "Hello"
+
+      flow2 :: Flow String String
       flow2 = pureFlow $ \input -> input ++ " world"
-      -- Combine both flows
+      
+      -- Combine both flows using `>>>`
+      flow :: Flow () String
       flow = flow1 >>> flow2
-      -- Empty input
-      input = ()
     in
-      runFlow defaulExecutionConfig flow input
+      runFlow defaultExecutionConfig flow () :: IO String
 ```
 
 ### 3. Running a shell command
 
-```haskell
+```haskell eval
     let
       -- Prints "Hello world" to stdout and produces no output
+      flow :: Flow () ()
       flow = shellFlow "echo Hello world"
     in
-      runFlow defaulExecutionConfig flow ()
+      runFlow defaultExecutionConfig flow () :: IO ()
 ```
 
 ### 4. Caching a flow
 
-```haskell
+```haskell eval
     let
       -- Prints "Increment!" everytime it runs
+      increment :: Flow Int Int
       increment = ioFlow $ \input -> do
         putStrLn "Increment!"
         return $ input + 1
-      -- Reset to zero
+      -- Reset any count to zero
+      reset :: Flow Int Int
       reset = pureFlow $ \input -> 0
       -- Caching the `increment` flow
-      cachedIncrement = caching "increment" increment
+      cachedIncrement :: Flow Int Int
+      cachedIncrement = caching ("increment" :: String) increment
       -- Without caching
+      flow1 :: Flow Int Int
       flow1 = reset >>> increment >>> reset >>> increment
       -- With caching
+      flow2 :: Flow Int Int
       flow2 = reset >>> cachedIncrement >>> reset >>> cachedIncrement
     in
       do
         -- Prints "Increment!" twice to stdout
-        runFlow defaulExecutionConfig flow1 ()
+        runFlow defaultExecutionConfig flow1 (0 :: Int) :: IO Int
         -- Prints "Increment!" once to stdout
-        runFlow defaulExecutionConfig flow2 ()
+        runFlow defaultExecutionConfig flow2 (0 :: Int) :: IO Int
         return ()
 ```
 
