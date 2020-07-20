@@ -41,14 +41,17 @@ import Control.Kernmantle.Rope
   )
 import Control.Monad.IO.Class (liftIO)
 import Data.CAS.ContentHashable (contentHash)
+import qualified Data.CAS.ContentHashable as CH
 import qualified Data.CAS.ContentStore as CS
+import qualified Data.CAS.RemoteCache as RC
 import Data.String (fromString)
 import Data.Text (Text, unpack)
 import qualified Data.Text as T
 import Funflow.Flow (Flow)
 import Funflow.Flows.Command
-  ( CommandFlow (CommandFlow, ShellCommandFlow),
+  ( CommandFlow (CommandFlow, ShellCommandFlow, WritingCommandFlow),
     CommandFlowConfig (CommandFlowConfig),
+    WritingCommandFlowInput (WritingCommandFlowInput),
   )
 import qualified Funflow.Flows.Command as CF
 import Funflow.Flows.Docker
@@ -74,7 +77,8 @@ import Katip
     registerScribe,
     runKatipContextT,
   )
-import Path (Abs, Dir, absdir)
+import Path (Abs, Dir, absdir, fromAbsDir)
+import Path.IO (copyDirRecur)
 import System.Environment (getEnv)
 import System.IO (stdout)
 import System.IO.Unsafe (unsafePerformIO)
@@ -129,7 +133,7 @@ runFlow (FlowExecutionConfig {commandExecution}) flow input =
           & weave'
             #command
             ( case commandExecution of
-                SystemExecutor -> interpretCommandFlowSystemExecutor
+                SystemExecutor -> interpretCommandFlowSystemExecutor store
                 -- change
                 ExternalExecutor -> interpretCommandFlowExternalExecutor store
             )
@@ -151,15 +155,17 @@ interpretSimpleFlow simpleFlow = case simpleFlow of
 -- Possible interpreters for the command flow
 
 -- System executor: just spawn processes
-interpretCommandFlowSystemExecutor :: (Arrow a, HasKleisliIO m a) => CommandFlow i o -> a i o
-interpretCommandFlowSystemExecutor commandFlow =
-  let runProcess _ spec = liftKleisliIO $ \() ->
+interpretCommandFlowSystemExecutor :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> CommandFlow i o -> a i o
+interpretCommandFlowSystemExecutor store commandFlow =
+  case commandFlow of
+    CommandFlow (CommandFlowConfig {CF.command, CF.args, CF.env}) ->
+      liftKleisliIO $ \() ->
         do
           _ <-
             createProcess $
               CreateProcess
-                { cmdspec = spec,
-                  env = Nothing,
+                { cmdspec = RawCommand (T.unpack command) (fmap T.unpack args),
+                  env = Nothing, -- TODO change to `Just $ mapPair T.unpack env`
                   cwd = Nothing,
                   std_in = Inherit,
                   std_out = Inherit,
@@ -175,11 +181,65 @@ interpretCommandFlowSystemExecutor commandFlow =
                   use_process_jobs = False
                 }
           return ()
-   in case commandFlow of
-        CommandFlow (CommandFlowConfig {CF.command, CF.args, CF.env}) ->
-          runProcess env $ RawCommand (T.unpack command) (fmap T.unpack args)
-        ShellCommandFlow shellCommand ->
-          runProcess [] $ ShellCommand (T.unpack shellCommand)
+    ShellCommandFlow shellCommand ->
+      liftKleisliIO $ \() ->
+        do
+          _ <-
+            createProcess $
+              CreateProcess
+                { cmdspec = ShellCommand (T.unpack shellCommand),
+                  env = Nothing, -- TODO change to `Just $ mapPair T.unpack env`
+                  cwd = Nothing,
+                  std_in = Inherit,
+                  std_out = Inherit,
+                  std_err = Inherit,
+                  close_fds = False,
+                  create_group = False,
+                  delegate_ctlc = False,
+                  detach_console = False,
+                  create_new_console = False,
+                  new_session = False,
+                  child_group = Nothing,
+                  child_user = Nothing,
+                  use_process_jobs = False
+                }
+          return ()
+    -- In this interpreter, we copy the content of the input CS.Item to a new CS.Item and
+    -- use it as the current working directory for the command
+    WritingCommandFlow (CommandFlowConfig {CF.command, CF.args}) ->
+      liftKleisliIO $ \(WritingCommandFlowInput {CF.workingDirectoryContent}) ->
+        do
+          -- Make a content store item
+          itemHash <- CH.contentHash (command, args, workingDirectoryContent)
+          CS.Complete (_, completedItem) <- CS.withConstructIfMissing store RC.NoCache mempty itemHash $ \outputContentItemFilePath ->
+            do
+              -- Copy files from input
+              let inputDirectoryFilePath = CS.itemPath store workingDirectoryContent
+              copyDirRecur inputDirectoryFilePath outputContentItemFilePath
+              -- Run task with cwd
+              _ <-
+                createProcess $
+                  CreateProcess
+                    { cmdspec = RawCommand (T.unpack command) (fmap T.unpack args),
+                      env = Nothing, -- TODO change to `Just $ mapPair T.unpack env`
+                      cwd = Just $ fromAbsDir outputContentItemFilePath,
+                      std_in = Inherit,
+                      std_out = Inherit,
+                      std_err = Inherit,
+                      close_fds = False,
+                      create_group = False,
+                      delegate_ctlc = False,
+                      detach_console = False,
+                      create_new_console = False,
+                      new_session = False,
+                      child_group = Nothing,
+                      child_user = Nothing,
+                      use_process_jobs = False
+                    }
+              -- TODO handle failure
+              return $ Right ()
+          -- Return written CS Item
+          return completedItem
 
 -- External executor: use the external-executor package
 -- TODO currently little to no benefits, need to allow setting SQL, Redis, etc
@@ -224,6 +284,9 @@ interpretCommandFlowExternalExecutor store commandFlow =
                     _etWriteToStdOut = StdOutCapture
                   }
            in runTask task
+        WritingCommandFlow _ ->
+          -- TODO implement interpreter for WritingCommandFlow
+          error "Not implemented"
 
 -- A type alias to clarify the type of functions that will reinterpret
 -- to use for interpretation functions that will be called by `weave`
