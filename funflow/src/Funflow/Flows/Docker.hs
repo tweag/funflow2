@@ -7,15 +7,15 @@
  -}
 module Funflow.Flows.Docker where
 
+import qualified Data.CAS.ContentStore as CS
 import Data.Text (Text)
+import Funflow.Flows.Command (CommandFlowConfig, CommandFlowInput)
 
 -- Configure what task to run in Docker
 data DockerFlowConfig = DockerFlowConfig
-  { image :: Text,
-    command :: Text,
-    args :: [Text]
+  { image :: Text
   }
 
 -- Docker flows to perform external tasks
 data DockerFlow i o where
-  DockerFlow :: DockerFlowConfig -> DockerFlow () ()
+  DockerFlow :: DockerFlowConfig -> CommandFlowConfig -> DockerFlow CommandFlowInput CS.Item

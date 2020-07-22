@@ -5,9 +5,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
--- Common imports
-
--- Standard way of building flows
+import qualified Data.CAS.ContentStore as CS
 import Funflow
   ( CommandExecutionHandler (SystemExecutor),
     Flow,
@@ -22,14 +20,12 @@ import Funflow
     runFlow,
     shellFlow,
   )
--- Required to build a Docker flow
-
--- Required to build an executor flow
-import Funflow.Flows.Command (CommandFlowConfig (CommandFlowConfig))
+import Funflow.Flows.Command (CommandFlowConfig (CommandFlowConfig), CommandFlowInput (CommandFlowInput))
 import qualified Funflow.Flows.Command as CF
 import Funflow.Flows.Docker (DockerFlowConfig (DockerFlowConfig))
 import qualified Funflow.Flows.Docker as DF
 import qualified Funflow.Flows.Nix as NF
+import Funflow.Util (Optional (Empty))
 
 main :: IO ()
 main = do
@@ -43,9 +39,9 @@ main = do
   putStr "\n---------------------\n"
   testFlow @() @() "a flow running a shell string command" someShellFlow ()
   putStr "\n---------------------\n"
-  testFlow @() @() "a flow running a command" someCommandFlow ()
+  testFlow @() @CS.Item "a flow running a command" someCommandFlow ()
   putStr "\n---------------------\n"
-  testFlow @() @() "a flow running a task in docker" someDockerFlow ()
+  testFlow @CommandFlowInput @CS.Item "a flow running a task in docker" someDockerFlow (CF.CommandFlowInput {CF.workingDirectoryContent = Empty})
   putStr "\n---------------------\n"
   testFlow @() @() "a flow running a task in a nix shell" someNixFlow ()
   putStr "\n------  DONE   ------\n"
@@ -74,11 +70,12 @@ someIoFlow = ioFlow $ const $ putStrLn "Some IO operation"
 someShellFlow :: Flow () ()
 someShellFlow = shellFlow "echo someShellFlow worked"
 
-someCommandFlow :: Flow () ()
-someCommandFlow = commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["someCommandFlow worked"], CF.env = []})
+someCommandFlow :: Flow () CS.Item
+someCommandFlow = proc () -> do
+  commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["someCommandFlow worked"], CF.env = []}) -< CommandFlowInput {CF.workingDirectoryContent = Empty}
 
-someDockerFlow :: Flow () ()
-someDockerFlow = dockerFlow (DockerFlowConfig {DF.image = "python", DF.command = "python", DF.args = ["-c", "print('someDockerFlow worked')"]})
+someDockerFlow :: Flow CommandFlowInput CS.Item
+someDockerFlow = dockerFlow (DockerFlowConfig {DF.image = "python"}) (CommandFlowConfig {CF.command = "python", CF.args = ["-c", "print('someDockerFlow worked')"], CF.env = []})
 
 someNixFlow :: Flow () ()
 someNixFlow = nixFlow (NF.NixFlowConfig {NF.nixEnv = NF.PackageList ["python"], NF.command = "python -c \"print('someNixFlow worked')\"", NF.args = [], NF.env = [], NF.nixpkgsSource = NF.NIX_PATH})

@@ -14,7 +14,9 @@ import Data.CAS.ContentHashable
     contentHashUpdate,
     contentHashUpdate_fingerprint,
   )
+import qualified Data.CAS.ContentStore as CS
 import Data.Text (Text)
+import Funflow.Flows.Command (CommandFlowConfig, CommandFlowInput)
 import GHC.Generics (Generic)
 import Text.URI (URI)
 import qualified Text.URI as URI
@@ -31,13 +33,7 @@ data NixFlowConfig = NixFlowConfig
   { -- | Specification of the nix environment
     nixEnv :: Environment,
     -- | Which version of nixpkgs to use
-    nixpkgsSource :: NixpkgsSource,
-    -- | The command to run in the environment
-    command :: Text,
-    -- | Arguments to pass to the command
-    args :: [Text],
-    -- | Environmental variables which are set in the environment
-    env :: [(Text, Text)]
+    nixpkgsSource :: NixpkgsSource
   }
 
 data Environment
@@ -57,4 +53,4 @@ instance ContentHashable IO NixpkgsSource where
 
 -- Docker flows to perform external tasks
 data NixFlow i o where
-  NixFlow :: NixFlowConfig -> NixFlow () ()
+  NixFlow :: NixFlowConfig -> CommandFlowConfig -> NixFlow CommandFlowInput CS.Item

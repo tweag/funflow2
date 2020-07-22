@@ -16,15 +16,15 @@ data CommandFlowConfig = CommandFlowConfig
     args :: [Text],
     env :: [(Text, Text)]
   }
+  deriving (Show)
 
-data WritingCommandFlowInput = WritingCommandFlowInput
-  { workingDirectoryContent :: CS.Item
+data CommandFlowInput = CommandFlowInput
+  { workingDirectoryContent :: Maybe CS.Item
   }
+  deriving (Show)
 
 -- Command flows to run a command
 data CommandFlow i o where
-  -- Working directory will be the current working directory
-  CommandFlow :: CommandFlowConfig -> CommandFlow () ()
+  CommandFlow :: CommandFlowConfig -> CommandFlow CommandFlowInput CS.Item
+  DynamicCommandFlow :: CommandFlow (CommandFlowConfig, CommandFlowInput) CS.Item
   ShellCommandFlow :: Text -> CommandFlow () ()
-  -- Working directory will be defined and returned
-  WritingCommandFlow :: CommandFlowConfig -> CommandFlow WritingCommandFlowInput CS.Item
