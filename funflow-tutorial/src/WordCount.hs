@@ -20,13 +20,13 @@ regex matching (`Text.Regex.Posix`), and more.
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import Data.List
+import Data.List (sortBy)
 import qualified Data.Map as Map
 import Data.Ord (comparing)
 import qualified Data.Text.IO as T
 import qualified Data.Text as T
 import Text.Printf (printf)
-import Text.Regex.Posix
+import Text.Regex.Posix ((=~))
 
 import Funflow
 ```
@@ -99,8 +99,8 @@ tasks and pipelines into Operator and DAG objects.
 readDocument :: Flow String T.Text
 readDocument = ioFlow T.readFile
 
-doWordCount :: Flow T.Text T.Text
-doWordCount = pureFlow (T.unlines . formatCounts . countWordsSortedDesc . filterWords. T.words . removePunctuation)
+countWordsAndSummarize :: Flow T.Text T.Text
+countWordsAndSummarize = pureFlow (T.unlines . formatCounts . countWordsSortedDesc . filterWords. T.words . removePunctuation)
 
 writeResult :: Flow (String, T.Text) ()
 writeResult = let
@@ -117,7 +117,7 @@ writeResult = let
 flow :: Flow (String, String) ()
 flow = proc (documentFilePath, outputSummaryFilePath) -> do
     documentText <- readDocument -< documentFilePath
-    countSummary <- doWordCount -< documentText
+    countSummary <- countWordsAndSummarize -< documentText
     writeResult -< (outputSummaryFilePath, countSummary)
 ```
 
@@ -126,5 +126,5 @@ flow = proc (documentFilePath, outputSummaryFilePath) -> do
 And finally, with our pipeline defined, we're ready to run it!
 
 ```haskell eval
-runFlow defaultExecutionConfig flow ("words.txt":: String, "counts.txt"::String) :: IO ()
+runFlow defaultExecutionConfig flow ("words.txt":: String, "outputs/counts.txt"::String) :: IO ()
 ```

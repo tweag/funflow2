@@ -27,4 +27,4 @@ out
 # TODO remove once bug corrected
 *.cabal
 
-funflow-tutorial/counts.txt
+funflow-tutorial/outputs
