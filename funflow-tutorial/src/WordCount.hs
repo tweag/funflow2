@@ -1,11 +1,22 @@
-{-|
-Implements a simple WordCount pipeline similar to the
-examples in the Apache Beam tutorials:
-https://beam.apache.org/get-started/wordcount-example/.
+{-# OPTIONS_GHC -F -pgmF inlitpp #-}
 
-Expects the `words.txt` file to exist in the current working
-directory.
--}
+# Example: WordCount
+
+In this example, we'll implement a simple pipeline which 
+calculates word frequencies in a plain text document. Our
+example pipeline will make use of `pureFlow` and `ioFlow`, which 
+allow us to define our pipeline's tasks in terms of Haskell functions. 
+
+This example may look familiar to users of Apache Beam, which 
+also includes a WordCount example https://beam.apache.org/get-started/wordcount-example/.
+
+## Imports
+
+First, we'll need to import some additional modules which will enable us to 
+more easily work with text (`Data.Text`), define dictionaries/maps (`Data.Map`), perform
+regex matching (`Text.Regex.Posix`), and more.
+
+```haskell top
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -18,9 +29,19 @@ import Text.Printf (printf)
 import Text.Regex.Posix
 
 import Funflow
+```
 
+```haskell top hide
+import Lib ()
+```
 
------------------- UTIL FUNCTIONS -----------------------
+## Helper Functions
+
+Since we're opting to write our pipeline using Haskell-based Flows, we need to define the Haskell
+functions which will take care of parsing our input text and counting its words. 
+
+```haskell top
+-- | (word, n_occurences)
 type TextCount = (T.Text, Int)
 
 -- | Counts members in a list of text. Also works for lazy lists (e.g. data from readFile)
@@ -40,7 +61,7 @@ removePunctuation =
         punctuation = ",.?!:;\"\'" :: String
     in T.filter (not . (`elem` punctuation))
 
- -- | Filters words which are not comprised of latin characters (hyphens are allowed)
+-- | Filters words which are not comprised of latin characters (hyphens are allowed)
 filterWords :: [T.Text] -> [T.Text]
 filterWords = 
     let 
@@ -58,10 +79,23 @@ sortCountsDesc = sortBy (flip $ comparing snd)
 -- | Prepare word counts for printing
 formatCounts :: [TextCount] -> [T.Text]
 formatCounts = map (\(w,c) -> T.pack $ printf "%s: %d" (T.unpack w) c)
+```
 
+## Pipeline Definition
 
------------------- PIPELINE DEFINITION ---------------
--- Individual task definitions (each task is also a full "Flow")
+With our core utility functions defined, we're ready to define our pipeline. One 
+simple way to structure our pipeline is to divide it into three tasks/operations:
+
+1. Read the input text file 
+2. Parse the input text and return a summary of the word frequencies in it 
+3. Write out our results. For this example, we can just write them directly to the terminal.
+
+Remember that in Funflow both tasks and a pipeline/DAG are described in terms of the same 
+type, a Flow. This is in contract to applications like Airflow, which separate out 
+tasks and pipelines into Operator and DAG objects. 
+
+```haskell top
+-- Individual task definitions (remember that each task is also a full "Flow")
 readDocument :: Flow String T.Text
 readDocument = ioFlow T.readFile
 
@@ -69,7 +103,13 @@ doWordCount :: Flow T.Text T.Text
 doWordCount = pureFlow (T.unlines . formatCounts . countWordsSortedDesc . filterWords. T.words . removePunctuation)
 
 writeResult :: Flow (String, T.Text) ()
-writeResult = ioFlow (\(f, countText) -> T.writeFile f countText)
+writeResult = let
+        writeOutputMessage :: (String, T.Text) -> IO ()
+        writeOutputMessage (f, countText) = do
+            T.putStrLn "Normally we would write the result to a file with T.writeFile, but for this example we can instead print the output:"
+            T.putStrLn countText 
+            return ()
+    in ioFlow writeOutputMessage
 
 -- Build the final pipeline using the task Flows defined above
 --   Note: Using arrow syntax to control which inputs get passed to
@@ -79,12 +119,12 @@ flow = proc (documentFilePath, outputSummaryFilePath) -> do
     documentText <- readDocument -< documentFilePath
     countSummary <- doWordCount -< documentText
     writeResult -< (outputSummaryFilePath, countSummary)
+```
 
------------------------------------------------------
-main :: IO ()
-main = do
-    let input_document = "words.txt" :: String
-        output_counts = "counts.txt" :: String
-    putStrLn $ printf "Starting WordCount pipeline for input document '%s'..." input_document
-    runFlow defaultExecutionConfig flow (input_document, output_counts) :: IO ()
-    putStrLn $ printf "Run complete! Results can be found in '%s'" output_counts
+## Run the pipeline
+
+And finally, with our pipeline defined, we're ready to run it!
+
+```haskell eval
+runFlow defaultExecutionConfig flow ("words.txt":: String, "counts.txt"::String) :: IO ()
+```
