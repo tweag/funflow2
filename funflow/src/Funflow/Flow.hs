@@ -9,6 +9,8 @@
 
 module Funflow.Flow
   ( Flow,
+    RequiredStrands,
+    RequiredCoreEffects,
   )
 where
 

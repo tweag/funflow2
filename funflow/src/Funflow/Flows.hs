@@ -9,8 +9,9 @@
 module Funflow.Flows
   ( pureFlow,
     ioFlow,
-    shellFlow,
     commandFlow,
+    dynamicCommandFlow,
+    shellFlow,
     dockerFlow,
     nixFlow,
   )
@@ -20,22 +21,25 @@ import Control.Kernmantle.Rope (strand)
 import qualified Data.CAS.ContentStore as CS
 import Data.Text (Text)
 import Funflow.Flow (Flow)
-import Funflow.Flows.Command (CommandFlow (CommandFlow, ShellCommandFlow), CommandFlowConfig, CommandFlowInput)
+import Funflow.Flows.Command (CommandFlow (CommandFlow, DynamicCommandFlow, ShellCommandFlow), CommandFlowConfig, CommandFlowInput)
 import Funflow.Flows.Docker (DockerFlow (DockerFlow), DockerFlowConfig)
 import Funflow.Flows.Nix (NixFlow (NixFlow), NixFlowConfig)
-import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
+import Funflow.Flows.Simple (SimpleFlow (IOFlow, PureFlow))
 
 pureFlow :: (i -> o) -> Flow i o
-pureFlow f = strand #simple $ Pure f
+pureFlow f = strand #simple $ PureFlow f
 
 ioFlow :: (i -> IO o) -> Flow i o
-ioFlow f = strand #simple $ IO f
+ioFlow f = strand #simple $ IOFlow f
 
 shellFlow :: Text -> Flow () ()
 shellFlow config = strand #command $ ShellCommandFlow config
 
 commandFlow :: CommandFlowConfig -> Flow CommandFlowInput CS.Item
 commandFlow config = strand #command $ CommandFlow config
+
+dynamicCommandFlow :: Flow (CommandFlowConfig, CommandFlowInput) CS.Item
+dynamicCommandFlow = strand #command $ DynamicCommandFlow
 
 dockerFlow :: DockerFlowConfig -> CommandFlowConfig -> Flow CommandFlowInput CS.Item
 dockerFlow dockerConfig commandConfig = strand #docker $ DockerFlow dockerConfig commandConfig

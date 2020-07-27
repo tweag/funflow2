@@ -10,5 +10,5 @@ module Funflow.Flows.Simple where
 
 -- External flows to perform external tasks
 data SimpleFlow i o where
-  Pure :: (i -> o) -> SimpleFlow i o
-  IO :: (i -> IO o) -> SimpleFlow i o
+  PureFlow :: (i -> o) -> SimpleFlow i o
+  IOFlow :: (i -> IO o) -> SimpleFlow i o

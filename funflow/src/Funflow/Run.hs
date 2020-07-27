@@ -1,3 +1,4 @@
+{-# LANGUAGE Arrows #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -40,16 +41,16 @@ import Control.Kernmantle.Rope
     weave',
   )
 import Control.Monad.IO.Class (liftIO)
-import Data.CAS.ContentHashable (contentHash)
+import Data.CAS.ContentHashable (ContentHash, contentHash)
 import qualified Data.CAS.ContentHashable as CH
 import qualified Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as RC
 import Data.String (fromString)
-import Data.Text (Text, unpack)
 import qualified Data.Text as T
 import Funflow.Flow (Flow)
 import Funflow.Flows.Command
-  ( CommandFlow (CommandFlow, DynamicCommandFlow, ShellCommandFlow),
+  ( CommandArg,
+    CommandFlow (CommandFlow, DynamicCommandFlow, ShellCommandFlow),
     CommandFlowConfig (CommandFlowConfig),
     CommandFlowInput (CommandFlowInput),
   )
@@ -64,7 +65,7 @@ import Funflow.Flows.Nix
     NixFlowConfig (NixFlowConfig),
   )
 import qualified Funflow.Flows.Nix as NF
-import Funflow.Flows.Simple (SimpleFlow (IO, Pure))
+import Funflow.Flows.Simple (SimpleFlow (IOFlow, PureFlow))
 import Katip
   ( ColorStrategy (ColorIfTerminal),
     Severity (InfoS),
@@ -79,9 +80,7 @@ import Katip
   )
 import Path (Abs, Dir, absdir, fromAbsDir)
 import Path.IO (copyDirRecur)
-import System.Environment (getEnv)
 import System.IO (stdout)
-import System.IO.Unsafe (unsafePerformIO)
 import System.Process
   ( CmdSpec (RawCommand, ShellCommand),
     CreateProcess (CreateProcess),
@@ -103,7 +102,6 @@ import System.Process
     std_out,
     use_process_jobs,
   )
-import qualified Text.URI as URI
 
 -- Run a flow
 data FlowExecutionConfig = FlowExecutionConfig
@@ -128,8 +126,8 @@ runFlow (FlowExecutionConfig {commandExecution}) flow input =
       CS.withStore defaultPath $ \store -> do
         flow
           -- Weave effects
-          & weave #docker interpretDockerFlow
-          & weave #nix interpretNixFlow
+          & weave #docker (interpretDockerFlow store)
+          & weave #nix (interpretNixFlow store)
           & weave'
             #command
             ( case commandExecution of
@@ -149,21 +147,27 @@ runFlow (FlowExecutionConfig {commandExecution}) flow input =
 -- Interpret simple flow
 interpretSimpleFlow :: (Arrow a, HasKleisliIO m a) => SimpleFlow i o -> a i o
 interpretSimpleFlow simpleFlow = case simpleFlow of
-  Pure f -> arr f
-  IO f -> liftKleisliIO f
+  PureFlow f -> arr f
+  IOFlow f -> liftKleisliIO f
 
 --
 -- Possible interpreters for the command flow
 --
 
 -- System executor: just spawn processes
+
+commandFlowSystemExecutorContentHash :: T.Text -> [CommandArg] -> Maybe CS.Item -> IO ContentHash
+commandFlowSystemExecutorContentHash command args workingDirectoryContent =
+  let hashedArgs = [arg | CF.HashedCommandArg arg <- args]
+   in CH.contentHash (command, hashedArgs, workingDirectoryContent)
+
 interpretCommandFlowSystemExecutor :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> CommandFlow i o -> a i o
 interpretCommandFlowSystemExecutor store commandFlow =
   let runCommandFlow :: CommandFlowConfig -> CommandFlowInput -> IO CS.Item
       runCommandFlow (CommandFlowConfig {CF.command, CF.args}) (CommandFlowInput {CF.workingDirectoryContent}) =
         do
           -- Make a content store item
-          itemHash <- CH.contentHash (command, args, workingDirectoryContent)
+          itemHash <- commandFlowSystemExecutorContentHash command args workingDirectoryContent
           CS.Complete (_, completedItem) <- CS.withConstructIfMissing store RC.NoCache mempty itemHash $ \outputContentItemFilePath ->
             do
               -- Optionally, copy workingDirectoryContent to output item file path
@@ -175,7 +179,7 @@ interpretCommandFlowSystemExecutor store commandFlow =
               _ <-
                 createProcess $
                   CreateProcess
-                    { cmdspec = RawCommand (T.unpack command) (fmap T.unpack args),
+                    { cmdspec = RawCommand (T.unpack command) (fmap (T.unpack . CF.getArgText) args),
                       env = Nothing, -- TODO change to `Just $ mapPair T.unpack env`
                       cwd = Just $ fromAbsDir outputContentItemFilePath,
                       std_in = Inherit,
@@ -251,16 +255,32 @@ interpretCommandFlowExternalExecutor store commandFlow =
         return completedItem
    in case commandFlow of
         CommandFlow (CommandFlowConfig {CF.command, CF.args, CF.env}) ->
-          liftKleisliIO $ \_ ->
+          liftKleisliIO $ \(CommandFlowInput {CF.workingDirectoryContent}) ->
             -- Create the task description (task + cache hash)
+            -- TODO do something of `workingDirectoryContent`
             let task :: ExternalTask
                 task =
                   ExternalTask
                     { _etCommand = command,
                       -- TODO use input env
-                      _etEnv = EnvExplicit [(x, (fromString . unpack) y) | (x, y) <- env],
+                      _etEnv = EnvExplicit [(x, (fromString . T.unpack) y) | (x, y) <- env],
                       -- TODO use input args
-                      _etParams = fmap (fromString . unpack) args,
+                      _etParams = fmap (fromString . T.unpack . CF.getArgText) args,
+                      _etWriteToStdOut = StdOutCapture
+                    }
+             in do runTask task
+        DynamicCommandFlow ->
+          liftKleisliIO $ \((CommandFlowConfig {CF.command, CF.args, CF.env}), CommandFlowInput {CF.workingDirectoryContent}) ->
+            -- Create the task description (task + cache hash)
+            -- TODO do something of `workingDirectoryContent`
+            let task :: ExternalTask
+                task =
+                  ExternalTask
+                    { _etCommand = command,
+                      -- TODO use input env
+                      _etEnv = EnvExplicit [(x, (fromString . T.unpack) y) | (x, y) <- env],
+                      -- TODO use input args
+                      _etParams = fmap (fromString . T.unpack . CF.getArgText) args,
                       _etWriteToStdOut = StdOutCapture
                     }
              in do runTask task
@@ -289,38 +309,73 @@ type WeaverFor name eff strands coreConstraints =
   core i o
 
 -- Interpret docker flow
-interpretDockerFlow :: WeaverFor "docker" DockerFlow '[ '("command", CommandFlow)] '[]
-interpretDockerFlow reinterpret dockerFlow = case dockerFlow of
+interpretDockerFlow :: CS.ContentStore -> WeaverFor "docker" DockerFlow '[ '("simple", SimpleFlow), '("command", CommandFlow)] '[Arrow]
+interpretDockerFlow store reinterpret dockerFlow = case dockerFlow of
   DockerFlow (DockerFlowConfig {DF.image}) (CommandFlowConfig {CF.command, CF.args}) ->
-    let -- TODO add volume binding
-        commandConfig =
-          CommandFlowConfig
-            { CF.command = "docker",
-              CF.args = "run" : image : command : args,
-              CF.env = []
-            }
-     in reinterpret $ strand #command $ CommandFlow $ commandConfig
+    let -- Define a IO function that will later be wrapped in an arrow
+        mkCommandConfig :: CommandFlowInput -> IO CommandFlowConfig
+        mkCommandConfig (CommandFlowInput {CF.workingDirectoryContent}) = do
+          -- Specify the list of args to the `docker` command for the hash computation
+          let dockerHashedArgs :: [CommandArg]
+              dockerHashedArgs =
+                CF.HashedCommandArg "run"
+                  : CF.HashedCommandArg image
+                  : CF.HashedCommandArg command
+                  : args
+          hash <- commandFlowSystemExecutorContentHash command dockerHashedArgs workingDirectoryContent
+          CS.Complete item <- CS.lookup store hash
+          let outputPath = CS.itemPath store item
+          -- args passed to run the docker command
+          -- WARNING all hashed args must be specified in the above list `dockerHashedArgs`, in the same order
+          let dockerArgs =
+                CF.HashedCommandArg "run"
+                  : CF.HashedCommandArg image
+                  : CF.UnhashedCommandArg "-v"
+                  : CF.UnhashedCommandArg ((T.pack $ fromAbsDir outputPath) <> ":/out")
+                  : CF.HashedCommandArg command
+                  : args
+          return $
+            CommandFlowConfig
+              { CF.command = "docker",
+                CF.args = dockerArgs,
+                CF.env = [],
+                CF.workingDirectory = Nothing
+              }
+     in reinterpret $ proc commandInput -> do
+          commandConfig <- strand #simple $ IOFlow $ mkCommandConfig -< commandInput
+          strand #command $ DynamicCommandFlow -< (commandConfig, commandInput)
 
 -- Interpret nix flow
-interpretNixFlow :: WeaverFor "nix" NixFlow '[ '("command", CommandFlow)] '[]
-interpretNixFlow reinterpret nixFlow =
-  let -- Turn either a Nix file or a set of packages into the right list of arguments for `nix-shell`
-      packageSpec :: NF.Environment -> [Text]
-      packageSpec (NF.ShellFile shellFile) = [shellFile]
-      packageSpec (NF.PackageList packageNames) = [("-p " <> packageName) | packageName <- packageNames]
-      -- Turn a NIX_PATH or an URI to a tarball into the right list of arguments for `nix-shell`
-      nixpkgsSourceToParam :: NF.NixpkgsSource -> Text
-      -- FIXME This is DIRTY as HELL
-      nixpkgsSourceToParam NF.NIX_PATH =
-        T.pack $ unsafePerformIO $ getEnv "NIX_PATH"
-      nixpkgsSourceToParam (NF.NixpkgsTarball uri) = ("nixpkgs=" <> URI.render uri)
-   in case nixFlow of
-        NixFlow (NixFlowConfig {NF.nixEnv, NF.nixpkgsSource}) (CommandFlowConfig {CF.command, CF.args, CF.env}) ->
-          let nixPathEnvValue = nixpkgsSourceToParam nixpkgsSource
-              commandConfig =
-                CommandFlowConfig
-                  { CF.command = "nix-shell",
-                    CF.args = ("--run" : command : args) ++ packageSpec nixEnv,
-                    CF.env = ("NIX_PATH", nixPathEnvValue) : env
-                  }
-           in reinterpret $ strand #command $ CommandFlow $ commandConfig
+interpretNixFlow :: CS.ContentStore -> WeaverFor "nix" NixFlow '[ '("simple", SimpleFlow), '("command", CommandFlow)] '[Arrow]
+interpretNixFlow store reinterpret nixFlow =
+  case nixFlow of
+    NixFlow (NixFlowConfig {NF.nixEnv, NF.nixpkgsSource}) (CommandFlowConfig {CF.command, CF.args, CF.env}) ->
+      let -- Define a IO function that will later be wrapped in an arrow
+          mkCommandConfig :: CommandFlowInput -> IO CommandFlowConfig
+          mkCommandConfig (CommandFlowInput {CF.workingDirectoryContent}) = do
+            -- Retrieve nix path
+            nixPathEnvValue <- NF.nixpkgsSourceToParam nixpkgsSource
+            -- Specify the list of args to the `nix-shell` command for the hash computation
+            let nixHashedArgs :: [CommandArg]
+                nixHashedArgs =
+                  ( CF.HashedCommandArg "--run"
+                      : CF.HashedCommandArg command
+                      : args
+                  )
+                    ++ (map CF.HashedCommandArg $ NF.packageSpec nixEnv)
+            hash <- commandFlowSystemExecutorContentHash command nixHashedArgs workingDirectoryContent
+            CS.Complete item <- CS.lookup store hash
+            let outputPath = CS.itemPath store item
+            -- args passed to run the nix command
+            -- WARNING all hashed args must be specified in the above list `dockerHashedArgs`, in the same order
+            let nixArgs = nixHashedArgs
+            return $
+              CommandFlowConfig
+                { CF.command = "docker",
+                  CF.args = nixArgs,
+                  CF.env = ("NIX_PATH", nixPathEnvValue) : env,
+                  CF.workingDirectory = Just outputPath
+                }
+       in reinterpret $ proc commandInput -> do
+            commandConfig <- strand #simple $ IOFlow $ mkCommandConfig -< commandInput
+            strand #command $ DynamicCommandFlow -< (commandConfig, commandInput)

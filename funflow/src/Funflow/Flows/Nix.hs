@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-
  - "Nix" flows allow to run tasks in Docker
@@ -15,9 +16,10 @@ import Data.CAS.ContentHashable
     contentHashUpdate_fingerprint,
   )
 import qualified Data.CAS.ContentStore as CS
-import Data.Text (Text)
+import qualified Data.Text as T
 import Funflow.Flows.Command (CommandFlowConfig, CommandFlowInput)
 import GHC.Generics (Generic)
+import System.Environment (getEnv)
 import Text.URI (URI)
 import qualified Text.URI as URI
 
@@ -38,10 +40,10 @@ data NixFlowConfig = NixFlowConfig
 
 data Environment
   = -- | Path to a shell.nix file
-    ShellFile (Text)
+    ShellFile (T.Text)
   | -- | A list of packages that
     -- will be passed by @-p@.
-    PackageList [Text]
+    PackageList [T.Text]
   deriving (Generic)
 
 -- instances for cashing
@@ -54,3 +56,17 @@ instance ContentHashable IO NixpkgsSource where
 -- Docker flows to perform external tasks
 data NixFlow i o where
   NixFlow :: NixFlowConfig -> CommandFlowConfig -> NixFlow CommandFlowInput CS.Item
+
+--
+-- Util functions
+--
+
+-- Turn either a Nix file or a set of packages into the right list of arguments for `nix-shell`
+packageSpec :: Environment -> [T.Text]
+packageSpec (ShellFile shellFile) = [shellFile]
+packageSpec (PackageList packageNames) = [("-p " <> packageName) | packageName <- packageNames]
+
+-- Turn a NIX_PATH or an URI to a tarball into the right list of arguments for `nix-shell`
+nixpkgsSourceToParam :: NixpkgsSource -> IO T.Text
+nixpkgsSourceToParam NIX_PATH = getEnv "NIX_PATH" >>= return . T.pack
+nixpkgsSourceToParam (NixpkgsTarball uri) = return $ "nixpkgs=" <> URI.render uri

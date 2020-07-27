@@ -25,7 +25,6 @@ import qualified Funflow.Flows.Command as CF
 import Funflow.Flows.Docker (DockerFlowConfig (DockerFlowConfig))
 import qualified Funflow.Flows.Docker as DF
 import qualified Funflow.Flows.Nix as NF
-import Funflow.Util (Optional (Empty))
 
 main :: IO ()
 main = do
@@ -41,9 +40,9 @@ main = do
   putStr "\n---------------------\n"
   testFlow @() @CS.Item "a flow running a command" someCommandFlow ()
   putStr "\n---------------------\n"
-  testFlow @CommandFlowInput @CS.Item "a flow running a task in docker" someDockerFlow (CF.CommandFlowInput {CF.workingDirectoryContent = Empty})
+  testFlow @CommandFlowInput @CS.Item "a flow running a task in docker" someDockerFlow (CF.CommandFlowInput {CF.workingDirectoryContent = Nothing})
   putStr "\n---------------------\n"
-  testFlow @() @() "a flow running a task in a nix shell" someNixFlow ()
+  testFlow @CommandFlowInput @CS.Item "a flow running a task in a nix shell" someNixFlow (CF.CommandFlowInput {CF.workingDirectoryContent = Nothing})
   putStr "\n------  DONE   ------\n"
 
 testFlowExecutionConfig :: FlowExecutionConfig
@@ -72,10 +71,10 @@ someShellFlow = shellFlow "echo someShellFlow worked"
 
 someCommandFlow :: Flow () CS.Item
 someCommandFlow = proc () -> do
-  commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["someCommandFlow worked"], CF.env = []}) -< CommandFlowInput {CF.workingDirectoryContent = Empty}
+  commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["someCommandFlow worked"], CF.env = [], CF.workingDirectory = Nothing}) -< CommandFlowInput {CF.workingDirectoryContent = Nothing}
 
 someDockerFlow :: Flow CommandFlowInput CS.Item
-someDockerFlow = dockerFlow (DockerFlowConfig {DF.image = "python"}) (CommandFlowConfig {CF.command = "python", CF.args = ["-c", "print('someDockerFlow worked')"], CF.env = []})
+someDockerFlow = dockerFlow (DockerFlowConfig {DF.image = "python"}) (CommandFlowConfig {CF.command = "python", CF.args = ["-c", "print('someDockerFlow worked')"], CF.env = [], CF.workingDirectory = Nothing})
 
-someNixFlow :: Flow () ()
-someNixFlow = nixFlow (NF.NixFlowConfig {NF.nixEnv = NF.PackageList ["python"], NF.command = "python -c \"print('someNixFlow worked')\"", NF.args = [], NF.env = [], NF.nixpkgsSource = NF.NIX_PATH})
+someNixFlow :: Flow CommandFlowInput CS.Item
+someNixFlow = nixFlow (NF.NixFlowConfig {NF.nixEnv = NF.PackageList ["python"], NF.nixpkgsSource = NF.NIX_PATH}) (CF.CommandFlowConfig {CF.command = "python -c \"print('someNixFlow worked')\"", CF.args = [], CF.env = [], CF.workingDirectory = Nothing})
