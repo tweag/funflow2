@@ -8,6 +8,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
+-- | This module defines how to run your flows
 module Funflow.Run
   ( FlowExecutionConfig (..),
     CommandExecutionHandler (..),
@@ -103,21 +104,38 @@ import System.Process
     use_process_jobs,
   )
 
--- Run a flow
+-- * Run a flow
+
+-- ** Flow execution configuration
+
+-- | Configure how to run your flow
 data FlowExecutionConfig = FlowExecutionConfig
-  { commandExecution :: CommandExecutionHandler
-    -- , executionEnvironment :: CommandExecutionEnvironment
+  { -- | The command execution configuration
+    commandExecution :: CommandExecutionHandler
   }
 
-data CommandExecutionHandler = SystemExecutor | ExternalExecutor
+-- | Configure how to execute the commands
+data CommandExecutionHandler
+  = -- | Execute on the system
+    SystemExecutor
+  | -- | Use "external-executor" execution system
+    ExternalExecutor
 
--- data CommandHashStrategy = Smart | Rigorous
--- data CommandExecutionEnvironment = SystemEnvironment | Nix | Docker
-
+-- | Default configuration to run a flow
 defaultExecutionConfig :: FlowExecutionConfig
 defaultExecutionConfig = FlowExecutionConfig {commandExecution = SystemExecutor}
 
-runFlow :: FlowExecutionConfig -> Flow input output -> input -> IO output
+-- ** Flow execution
+
+-- | Run a flow
+runFlow ::
+  -- | The execution configuration
+  FlowExecutionConfig ->
+  -- | The flow to run
+  Flow input output ->
+  -- | The input to evaluate the flow against
+  input ->
+  IO output
 runFlow (FlowExecutionConfig {commandExecution}) flow input =
   let -- TODO choose path
       defaultPath = [absdir|/tmp/funflow/store|]
@@ -144,23 +162,25 @@ runFlow (FlowExecutionConfig {commandExecution}) flow input =
           -- Finally, run
           & perform input
 
--- Interpret simple flow
+-- * Interpreters
+
+-- ** @SimpleFlow@ interpreter
+
+-- | Interpret @SimpleFlow@
 interpretSimpleFlow :: (Arrow a, HasKleisliIO m a) => SimpleFlow i o -> a i o
 interpretSimpleFlow simpleFlow = case simpleFlow of
   PureFlow f -> arr f
   IOFlow f -> liftKleisliIO f
 
---
--- Possible interpreters for the command flow
---
+-- ** @CommandFlow@ interpreters
 
--- System executor: just spawn processes
-
+-- | Compute the hash of a command flow
 commandFlowSystemExecutorContentHash :: T.Text -> [CommandArg] -> Maybe CS.Item -> IO ContentHash
 commandFlowSystemExecutorContentHash command args workingDirectoryContent =
   let hashedArgs = [arg | CF.HashedCommandArg arg <- args]
    in CH.contentHash (command, hashedArgs, workingDirectoryContent)
 
+-- | Spawn a process using the 'process' library
 interpretCommandFlowSystemExecutor :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> CommandFlow i o -> a i o
 interpretCommandFlowSystemExecutor store commandFlow =
   let runCommandFlow :: CommandFlowConfig -> CommandFlowInput -> IO CS.Item
@@ -230,8 +250,9 @@ interpretCommandFlowSystemExecutor store commandFlow =
                     }
               return ()
 
--- External executor: use the external-executor package
--- TODO currently little to no benefits, need to allow setting SQL, Redis, etc
+-- | Spawn a process using the 'external-executor' package
+--
+--   TODO currently little to no benefits, need to allow setting SQL, Redis, etc
 interpretCommandFlowExternalExecutor :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> CommandFlow i o -> a i o
 interpretCommandFlowExternalExecutor store commandFlow =
   let runTask :: ExternalTask -> IO CS.Item
@@ -299,16 +320,9 @@ interpretCommandFlowExternalExecutor store commandFlow =
                   _ <- runTask task
                   return ()
 
--- A type alias to clarify the type of functions that will reinterpret
--- to use for interpretation functions that will be called by `weave`
-type WeaverFor name eff strands coreConstraints =
-  forall mantle core i o.
-  (Entwines (LooseRope mantle core) strands, SatisfiesAll core coreConstraints) =>
-  (forall x y. (LooseRope ('(name, eff) ': mantle) core x y -> core x y)) ->
-  eff i o ->
-  core i o
+-- ** @DockerFlow@ interpreter
 
--- Interpret docker flow
+-- | Interpret docker flow
 interpretDockerFlow :: CS.ContentStore -> WeaverFor "docker" DockerFlow '[ '("simple", SimpleFlow), '("command", CommandFlow)] '[Arrow]
 interpretDockerFlow store reinterpret dockerFlow = case dockerFlow of
   DockerFlow (DockerFlowConfig {DF.image}) (CommandFlowConfig {CF.command, CF.args}) ->
@@ -345,7 +359,9 @@ interpretDockerFlow store reinterpret dockerFlow = case dockerFlow of
           commandConfig <- strand #simple $ IOFlow $ mkCommandConfig -< commandInput
           strand #command $ DynamicCommandFlow -< (commandConfig, commandInput)
 
--- Interpret nix flow
+-- ** @NixFlow@ interpreter
+
+-- Interpret Nix flow
 interpretNixFlow :: CS.ContentStore -> WeaverFor "nix" NixFlow '[ '("simple", SimpleFlow), '("command", CommandFlow)] '[Arrow]
 interpretNixFlow store reinterpret nixFlow =
   case nixFlow of
@@ -379,3 +395,14 @@ interpretNixFlow store reinterpret nixFlow =
        in reinterpret $ proc commandInput -> do
             commandConfig <- strand #simple $ IOFlow $ mkCommandConfig -< commandInput
             strand #command $ DynamicCommandFlow -< (commandConfig, commandInput)
+
+-- * Utils
+
+-- | A type alias to clarify the type of functions that will reinterpret
+--   to use for interpretation functions that will be called by `weave`
+type WeaverFor name eff strands coreConstraints =
+  forall mantle core i o.
+  (Entwines (LooseRope mantle core) strands, SatisfiesAll core coreConstraints) =>
+  (forall x y. (LooseRope ('(name, eff) ': mantle) core x y -> core x y)) ->
+  eff i o ->
+  core i o
