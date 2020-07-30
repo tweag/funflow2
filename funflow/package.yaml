@@ -22,7 +22,6 @@ dependencies:
   - kernmantle-caching
   - modern-uri
   - path
-  - path-io
   - process
   - store
   - text

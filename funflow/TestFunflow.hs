@@ -40,9 +40,9 @@ main = do
   putStr "\n---------------------\n"
   testFlow @() @CS.Item "a flow running a command" someCommandFlow ()
   putStr "\n---------------------\n"
-  testFlow @CommandFlowInput @CS.Item "a flow running a task in docker" someDockerFlow (CF.CommandFlowInput {CF.workingDirectoryContent = Nothing})
+  testFlow @CommandFlowInput @CS.Item "a flow running a task in docker" someDockerFlow (CF.CommandFlowInput {})
   putStr "\n---------------------\n"
-  testFlow @CommandFlowInput @CS.Item "a flow running a task in a nix shell" someNixFlow (CF.CommandFlowInput {CF.workingDirectoryContent = Nothing})
+  testFlow @CommandFlowInput @CS.Item "a flow running a task in a nix shell" someNixFlow (CF.CommandFlowInput {})
   putStr "\n------  DONE   ------\n"
 
 testFlowExecutionConfig :: FlowExecutionConfig
@@ -71,7 +71,7 @@ someShellFlow = shellFlow "echo someShellFlow worked"
 
 someCommandFlow :: Flow () CS.Item
 someCommandFlow = proc () -> do
-  commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["someCommandFlow worked"], CF.env = [], CF.workingDirectory = Nothing}) -< CommandFlowInput {CF.workingDirectoryContent = Nothing}
+  commandFlow (CommandFlowConfig {CF.command = "echo", CF.args = ["someCommandFlow worked"], CF.env = [], CF.workingDirectory = Nothing}) -< CommandFlowInput {}
 
 someDockerFlow :: Flow CommandFlowInput CS.Item
 someDockerFlow = dockerFlow (DockerFlowConfig {DF.image = "python"}) (CommandFlowConfig {CF.command = "python", CF.args = ["-c", "print('someDockerFlow worked')"], CF.env = [], CF.workingDirectory = Nothing})
