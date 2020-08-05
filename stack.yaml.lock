@@ -30,16 +30,16 @@ packages:
   original:
     url: https://github.com/jgm/cheapskate/archive/7287cfd8f08c4c49e4ad4f300b5b19c4377cb094.tar.gz
 - completed:
-    size: 6962
-    url: https://github.com/GuillaumeDesforges/inliterate/archive/4b2200feabac46873bd336e640105895c7744e19.tar.gz
+    size: 7370
+    url: https://github.com/GuillaumeDesforges/inliterate/archive/1a7e082d1106e11466e16fbb4707837c7b6e9761.tar.gz
     name: inliterate
     version: 0.2.0
-    sha256: 54b4d7518d4b2edec6557b25f9245d4ce7be129e9c796b60d53660df414eb875
+    sha256: 13a81dcc92473d9fde41a7c85d19861ebd292e9677ad518bd4663bbbf1d37ba1
     pantry-tree:
       size: 902
-      sha256: 511e10429127872d6bf814ad3416541889b3533fbf15ca33c624b366ede73664
+      sha256: 286e2db2bb464eaf55d24e5ce1750f7c2c628b4149ad31620282bd429b20c383
   original:
-    url: https://github.com/GuillaumeDesforges/inliterate/archive/4b2200feabac46873bd336e640105895c7744e19.tar.gz
+    url: https://github.com/GuillaumeDesforges/inliterate/archive/1a7e082d1106e11466e16fbb4707837c7b6e9761.tar.gz
 - completed:
     size: 38444
     subdir: kernmantle
