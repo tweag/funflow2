@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -9,25 +10,26 @@
 
 module Funflow.Flow
   ( Flow,
+    toFlow,
   )
 where
 
 import Control.Arrow (Arrow, ArrowChoice)
 import Control.Kernmantle.Caching (ProvidesCaching)
-import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli)
+import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, strand)
 import Control.Monad.IO.Class (MonadIO)
-import Funflow.Flows.Command (CommandFlow)
-import Funflow.Flows.Docker (DockerFlow)
-import Funflow.Flows.Nix (NixFlow)
-import Funflow.Flows.Simple (SimpleFlow)
+import Funflow.Effects.Command (CommandEffect (..))
+import Funflow.Effects.Docker (DockerEffect (..))
+import Funflow.Effects.Nix (NixEffect (..))
+import Funflow.Effects.Simple (SimpleEffect (..))
 
 -- The constraints on the set of "strands"
 -- These will be "interpreted" into "core effects" (which have contraints defined below).
 type RequiredStrands =
-  '[  '("simple", SimpleFlow),
-      '("command", CommandFlow),
-      '("docker", DockerFlow),
-      '("nix", NixFlow)
+  '[  '("simple", SimpleEffect),
+      '("command", CommandEffect),
+      '("docker", DockerEffect),
+      '("nix", NixEffect)
    ]
 
 -- The class constraints on the "core effect".
@@ -53,3 +55,18 @@ type Flow input output =
     (RequiredCoreEffects m)
     input
     output
+
+class IsFlow f where
+  toFlow :: f i o -> Flow i o
+
+instance IsFlow SimpleEffect where
+  toFlow = strand #simple
+
+instance IsFlow CommandEffect where
+  toFlow = strand #command
+
+instance IsFlow DockerEffect where
+  toFlow = strand #docker
+
+instance IsFlow NixEffect where
+  toFlow = strand #nix
