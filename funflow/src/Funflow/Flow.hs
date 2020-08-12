@@ -11,6 +11,12 @@
 module Funflow.Flow
   ( Flow,
     toFlow,
+    pureFlow,
+    ioFlow,
+    commandFlow,
+    shellFlow,
+    dockerFlow,
+    nixFlow,
   )
 where
 
@@ -18,9 +24,10 @@ import Control.Arrow (Arrow, ArrowChoice)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, strand)
 import Control.Monad.IO.Class (MonadIO)
-import Funflow.Effects.Command (CommandEffect (..))
-import Funflow.Effects.Docker (DockerEffect (..))
-import Funflow.Effects.Nix (NixEffect (..))
+import Data.Text (Text)
+import Funflow.Effects.Command (CommandEffect (..), CommandEffectConfig)
+import Funflow.Effects.Docker (DockerEffect (..), DockerEffectConfig)
+import Funflow.Effects.Nix (NixEffect (..), NixEffectConfig)
 import Funflow.Effects.Simple (SimpleEffect (..))
 
 -- The constraints on the set of "strands"
@@ -56,17 +63,35 @@ type Flow input output =
     input
     output
 
-class IsFlow f where
-  toFlow :: f i o -> Flow i o
+class IsFlow binEff where
+  toFlow :: binEff i o -> Flow i o
 
 instance IsFlow SimpleEffect where
   toFlow = strand #simple
 
+pureFlow :: (i -> o) -> Flow i o
+pureFlow = toFlow . PureEffect
+
+ioFlow :: (i -> IO o) -> Flow i o
+ioFlow = toFlow . IOEffect
+
 instance IsFlow CommandEffect where
   toFlow = strand #command
+
+commandFlow :: CommandEffectConfig -> Flow () ()
+commandFlow = toFlow . CommandEffect
+
+shellFlow :: Text -> Flow () ()
+shellFlow = toFlow . ShellCommandEffect
 
 instance IsFlow DockerEffect where
   toFlow = strand #docker
 
+dockerFlow :: DockerEffectConfig -> Flow () ()
+dockerFlow = toFlow . DockerEffect
+
 instance IsFlow NixEffect where
   toFlow = strand #nix
+
+nixFlow :: NixEffectConfig -> Flow () ()
+nixFlow = toFlow . NixEffect
