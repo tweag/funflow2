@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
@@ -20,12 +21,16 @@ module Funflow.Flow
 where
 
 import Control.Arrow (Arrow, ArrowChoice)
-import Control.Kernmantle.Caching (ProvidesCaching)
-import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, strand)
+import Control.Kernmantle.Caching (ProvidesCaching, StoreWithId (StoreWithId), usingStore)
+import Control.Kernmantle.Error (MonadMask)
+import Control.Kernmantle.Parallel (PKleisli)
+import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, Reader, mapReader_, mapSieve, strand, type (~>))
 import Control.Monad.IO.Class (MonadIO)
 import Data.CAS.ContentStore as CS
 import Funflow.Effects.Docker (DockerEffect (..), DockerEffectConfig, DockerEffectInput)
+import qualified Data.CAS.RemoteCache as Remote
 import Funflow.Effects.Simple (SimpleEffect (..))
+import UnliftIO (MonadUnliftIO)
 
 -- | The constraints on the set of "strands"
 --   These will be "interpreted" into "core effects" (which have contraints defined below).
@@ -81,3 +86,19 @@ ioFlow = toFlow . IOEffect
 
 dockerFlow :: DockerEffectConfig -> Flow DockerEffectInput CS.Item
 dockerFlow = toFlow . DockerEffect
+
+-- Should be pushed to upstream (kernmantle)
+instance
+  (MonadIO m, MonadUnliftIO m, MonadMask m, Remote.Cacher m remoteCacher) =>
+  ProvidesCaching (Reader (StoreWithId remoteCacher) ~> PKleisli m)
+  where
+  usingStore =
+    mapReader_ $ \(StoreWithId store remoteCacher pipelineId) ->
+      mapSieve $ \act input ->
+        CS.cacheKleisliIO
+          pipelineId
+          (CS.defaultIOCacherWithIdent 1)
+          store
+          remoteCacher
+          act
+          input

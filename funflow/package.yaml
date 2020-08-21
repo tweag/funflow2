@@ -25,6 +25,7 @@ dependencies:
   - path
   - store
   - text
+  - unliftio
 
 library:
   source-dirs: src

@@ -26,14 +26,14 @@ import Control.External
   )
 import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (localStoreWithId)
+import Control.Kernmantle.Parallel (performP)
 import Control.Kernmantle.Rope
   ( HasKleisliIO,
     liftKleisliIO,
-    perform,
     runReader,
     untwine,
-    (&),
     weave',
+    (&),
   )
 import Control.Monad.IO.Class (liftIO)
 import Data.CAS.ContentHashable (contentHash)
@@ -92,7 +92,8 @@ runFlow flow input =
           -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
           & runReader (localStoreWithId store $ defaultCachingId)
           -- Finally, run
-          & perform input
+          -- Using `performP` will call the instance PKleisli for which (***) and traverse' compute in parallel
+          & performP input
 
 -- * Interpreters
 
