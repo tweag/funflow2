@@ -1,4 +1,5 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -38,6 +39,7 @@ import Control.Kernmantle.Rope
 import Control.Monad.IO.Class (liftIO)
 import Data.CAS.ContentHashable (contentHash)
 import qualified Data.CAS.ContentStore as CS
+import qualified Data.CAS.RemoteCache as RC
 import Data.Either (isLeft)
 import qualified Data.Map.Lazy as Map
 import Data.String (fromString)
@@ -50,7 +52,8 @@ import Funflow.Effects.Docker
     VolumeBinding (VolumeBinding),
   )
 import qualified Funflow.Effects.Docker as DE
-import Funflow.Effects.Simple (SimpleEffect (..))
+import Funflow.Effects.Simple (SimpleEffect (IOEffect, PureEffect))
+import Funflow.Effects.Store (StoreEffect (GetDir, PutDir))
 import Funflow.Flow (Flow)
 import Katip
   ( ColorStrategy (ColorIfTerminal),
@@ -66,6 +69,7 @@ import Katip
   )
 import Path (Abs, Dir, absdir, toFilePath)
 import System.IO (stdout)
+import Path.IO (copyDirRecur)
 
 -- * Flow execution
 
@@ -85,6 +89,7 @@ runFlow flow input =
         flow
           -- Weave effects
           & weave' #docker (interpretDockerEffect store)
+          & weave' #store (interpretStoreEffect store)
           & weave' #simple interpretSimpleEffect
           -- Strip of empty list of strands (after all weaves)
           & untwine
@@ -104,7 +109,20 @@ interpretSimpleEffect simpleEffect = case simpleEffect of
   PureEffect f -> arr f
   IOEffect f -> liftKleisliIO f
 
--- ** @CommandEffect@ interpreters
+-- ** @StoreEffect@ interpreters
+
+-- | Interpret @StoreEffect@
+interpretStoreEffect :: (Arrow a, HasKleisliIO m a, RC.Cacher m RC.NoCache) => CS.ContentStore -> StoreEffect i o -> a i o
+interpretStoreEffect store storeEffect = case storeEffect of
+  PutDir ->
+    liftKleisliIO $ \dirPath ->
+      let handleError hash = error $ "Could not put directory " <> show dirPath <> " in store item " <> show hash
+       in CS.putInStore store RC.NoCache handleError (flip copyDirRecur) dirPath
+  GetDir ->
+    -- Get path of item from store
+    arr $ \item -> CS.itemPath store item
+
+-- ** @DockerEffect@ interpreter
 
 -- | Run a task using external-executor, get a CS.Item
 runTask :: CS.ContentStore -> ExternalTask -> IO CS.Item
@@ -126,8 +144,6 @@ runTask store task = do
   -- Finish
   CS.Complete completedItem <- CS.lookup store hash
   return completedItem
-
--- ** @DockerEffect@ interpreter
 
 -- | Interpret docker effect
 interpretDockerEffect :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> DockerEffect i o -> a i o

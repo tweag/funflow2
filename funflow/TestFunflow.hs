@@ -11,13 +11,16 @@ import Funflow
   ( Flow,
     caching,
     dockerFlow,
+    getDir,
     ioFlow,
     pureFlow,
+    putDir,
     runFlow,
   )
 import Funflow.Effects.Docker (DockerEffectConfig (DockerEffectConfig), DockerEffectInput (DockerEffectInput), VolumeBinding (VolumeBinding))
 import qualified Funflow.Effects.Docker as DE
-import Path (Abs, Dir, absdir)
+import Path (Abs, Dir, Rel, absdir, parseAbsDir, reldir, (</>))
+import System.Directory (getCurrentDirectory)
 
 main :: IO ()
 main = do
@@ -28,6 +31,8 @@ main = do
   testFlow @() @() "a flow with IO" someIoFlow ()
   putStr "\n---------------------\n"
   testFlow @() @() "a flow with caching" someCachedFlow ()
+  putStr "\n---------------------\n"
+  testFlow @() @() "a flow copying a directory to the store" someStoreFlow ()
   putStr "\n---------------------\n"
   testFlow @() @CS.Item "a flow running a task in docker" someDockerFlow ()
   putStr "\n---------------------\n"
@@ -51,6 +56,13 @@ somePureFlow = pureFlow $ (+ 1)
 
 someIoFlow :: Flow () ()
 someIoFlow = ioFlow $ const $ putStrLn "Some IO operation"
+
+someStoreFlow :: Flow () ()
+someStoreFlow = proc () -> do
+  cwd <- ioFlow (\() -> parseAbsDir =<< getCurrentDirectory) -< ()
+  item <- putDir -< cwd
+  path <- getDir -< item
+  ioFlow $ (\(item, itemDirPath) -> putStrLn $ "Copied directory to item " <> show item <> " with path " <> show itemDirPath) -< (item, path)
 
 someDockerFlow :: Flow () CS.Item
 someDockerFlow = proc () -> do
