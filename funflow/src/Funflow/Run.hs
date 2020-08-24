@@ -12,6 +12,8 @@
 -- | This module defines how to run your flows
 module Funflow.Run
   ( runFlow,
+    runFlowWithConfig,
+    RunFlowConfig (..),
   )
 where
 
@@ -67,25 +69,30 @@ import Katip
     registerScribe,
     runKatipContextT,
   )
-import Path (Abs, Dir, absdir, toFilePath)
+import Path (Abs, Dir, Path, absdir, toFilePath)
 import System.IO (stdout)
 import Path.IO (copyDirRecur)
 
 -- * Flow execution
 
+-- | Flow execution configuration
+data RunFlowConfig = RunFlowConfig {storePath :: Path Abs Dir}
+
 -- | Run a flow
-runFlow ::
+runFlowWithConfig ::
+  -- | The configuration of the flow
+  RunFlowConfig ->
   -- | The flow to run
   Flow input output ->
-  -- | The input to evaluate the flow against
+  -- | The input to evaluate the flow with
   input ->
   IO output
-runFlow flow input =
-  let -- TODO choose path
-      defaultPath = [absdir|/tmp/funflow/store|]
+runFlowWithConfig config flow input =
+  let -- Expand config
+      (RunFlowConfig {storePath}) = config
       defaultCachingId = Just 1
    in -- Run with store to enable caching (with default path to store)
-      CS.withStore defaultPath $ \store -> do
+      CS.withStore storePath $ \store -> do
         flow
           -- Weave effects
           & weave' #docker (interpretDockerEffect store)
@@ -98,6 +105,15 @@ runFlow flow input =
           & runReader (localStoreWithId store $ defaultCachingId)
           -- Finally, run
           & perform input
+
+-- | Run a flow with the default configuration
+runFlow ::
+  -- | The flow to run
+  Flow input output ->
+  -- | The input to evaluate the flow with
+  input ->
+  IO output
+runFlow = runFlowWithConfig (RunFlowConfig {storePath = [absdir|/tmp/funflow/store/|]})
 
 -- * Interpreters
 

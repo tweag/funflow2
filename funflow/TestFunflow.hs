@@ -9,13 +9,14 @@
 import qualified Data.CAS.ContentStore as CS
 import Funflow
   ( Flow,
+    RunFlowConfig (..),
     caching,
     dockerFlow,
     getDir,
     ioFlow,
     pureFlow,
     putDir,
-    runFlow,
+    runFlowWithConfig,
   )
 import Funflow.Effects.Docker (DockerEffectConfig (DockerEffectConfig), DockerEffectInput (DockerEffectInput), VolumeBinding (VolumeBinding))
 import qualified Funflow.Effects.Docker as DE
@@ -41,8 +42,14 @@ main = do
 
 testFlow :: forall i o. (Show i, Show o) => String -> Flow i o -> i -> IO ()
 testFlow label flow input = do
+  -- Get current working directory as Path Abs Dir
+  cwd <- parseAbsDir =<< getCurrentDirectory
+  let storeDirPath = cwd </> [reldir|./.tmp/store|]
+      runFlow :: Flow i o -> i -> IO o
+      runFlow = runFlowWithConfig (RunFlowConfig {storePath = storeDirPath})
   putStrLn $ "Testing " ++ label
-  result <- runFlow @i @o flow input
+  putStrLn $ "Store opened at " <> show storeDirPath
+  result <- runFlow flow input
   putStrLn $ "Got " ++ (show result) ++ " from input " ++ (show input)
 
 someCachedFlow :: Flow () ()
