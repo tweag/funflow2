@@ -39,7 +39,7 @@ import Control.Kernmantle.Rope
     weave',
   )
 import Control.Monad.IO.Class (liftIO)
-import Data.CAS.ContentHashable (contentHash)
+import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent), contentHash)
 import qualified Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as RC
 import Data.Either (isLeft)
@@ -132,8 +132,16 @@ interpretStoreEffect :: (Arrow a, HasKleisliIO m a, RC.Cacher m RC.NoCache) => C
 interpretStoreEffect store storeEffect = case storeEffect of
   PutDir ->
     liftKleisliIO $ \dirPath ->
-      let handleError hash = error $ "Could not put directory " <> show dirPath <> " in store item " <> show hash
-       in CS.putInStore store RC.NoCache handleError (flip copyDirRecur) dirPath
+      let -- Use the DirectoryContent type
+          -- this will give a hash through `ContentHashable` that takes into account the content of the directory
+          directoryContent = DirectoryContent dirPath
+          -- Handle errors
+          handleError hash = error $ "Could not put directory " <> show dirPath <> " in store item " <> show hash
+          -- Copy recursively a directory from a DirectoryContent type
+          copy :: Path Abs Dir -> DirectoryContent -> IO ()
+          copy destinationPath (DirectoryContent sourcePath) = copyDirRecur sourcePath destinationPath
+       in -- Use cas-store putInStore to generate the item in which to copy
+          CS.putInStore store RC.NoCache handleError copy directoryContent
   GetDir ->
     -- Get path of item from store
     arr $ \item -> CS.itemPath store item
