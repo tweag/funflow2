@@ -66,7 +66,7 @@ someIoFlow = ioFlow $ const $ putStrLn "Some IO operation"
 
 someStoreFlow :: Flow () ()
 someStoreFlow = proc () -> do
-  cwd <- ioFlow (\() -> parseAbsDir =<< getCurrentDirectory) -< ()
+  cwd <- ioFlow (\() -> return . flip (</>) [reldir|./test/assets/storeFlowTest/|] =<< parseAbsDir =<< getCurrentDirectory) -< ()
   item <- putDir -< cwd
   path <- getDir -< item
   ioFlow $ (\(item, itemDirPath) -> putStrLn $ "Copied directory to item " <> show item <> " with path " <> show itemDirPath) -< (item, path)
