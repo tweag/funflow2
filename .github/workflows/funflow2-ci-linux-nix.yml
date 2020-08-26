@@ -17,15 +17,14 @@ jobs:
           name: tweag-funflow2
           signingKey: "${{ secrets.CACHIX_SIGNING_KEY }}"
       # Builds
-      - run: nix-build nix -A funflow.components.library
-      - run: nix-build nix -A funflow.components.exes
+      - run: nix-build nix -A funflow
       - run: |
           echo Build tests
-          TESTS_PATH=$(nix-build nix -A funflow.components.tests)
+          TESTS_PATH=$(nix-build nix -A funflow-tests)
           echo Running tests
           $TESTS_PATH/bin/test-funflow
-      # Build documentation and create symlink to ./result-docs
-      - run: nix-build -o result-docs nix/docs
+      # Build documentation
+      - run: ./scripts/ci-build-docs.sh
       # Deploy documentation to a github page
       - name: deploy-doc
         # Push to GitHub Pages only on master
@@ -33,4 +32,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           deploy_key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
-          publish_dir: ./result-docs
+          publish_dir: ./funflow-docs

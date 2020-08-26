@@ -1,8 +1,7 @@
-let pkgs = import ./nixpkgs.nix { };
-in pkgs.haskell-nix.stackProject {
-  # 'cleanGit' cleans a source directory based on the files known by git
-  src = pkgs.haskell-nix.haskellLib.cleanGit {
-    name = "funflow-project";
-    src = ./..;
-  };
-}
+{system ? builtins.currentSystem}:
+let 
+  overlays = import ./overlays.nix;
+  pkgs = import ./nixpkgs.nix {overlays=overlays; system=system;};
+# TODO - Before release we might want to limit what gets exported below
+# to the specific attributes we want to expose.
+in pkgs

@@ -1,13 +1,12 @@
-let
-  pkgs = import ./../nixpkgs.nix { };
-
-  project = import ./../default.nix;
-in pkgs.runCommand "funflow-tutorial-generated" {
-  src = ../../funflow-tutorial;
+{ runCommand,
+  funflow-tutorial
+}:
+runCommand "generate-funflow-tutorial" {
+  src = ../funflow-tutorial;
   buildInputs = [
-    project.funflow-tutorial.components.exes.quick-reference
-    project.funflow-tutorial.components.exes.tutorial1
-    project.funflow-tutorial.components.exes.wordcount
+    funflow-tutorial.quick-reference
+    funflow-tutorial.tutorial1
+    funflow-tutorial.wordcount
   ];
   # wordcount reads a "words.txt" file from the working directory
   # Here, we take the example included with funflow-tutorial
