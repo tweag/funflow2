@@ -3,14 +3,17 @@
 set -o errexit
 
 echo "Building API docs"
-stack build --nix --haddock
+# Note: this is a quick and dirty way to get haddock docks with relative links
+# since unfortunately the docs produced via haskell.nix have absolute paths
+# which won't work on GitHub pages.
+nix-shell -p stack --command 'stack build --nix --haddock'
 
 echo "Building Tutorials"
 nix-build ./nix -A generate-funflow-tutorials -o result
 
 echo "Preparing API docs for output"
 # Get the path to the docs
-line="$(stack path | grep 'local-doc-root')"
+line="$(nix-shell -p stack --command 'stack path' | grep 'local-doc-root')"
 docs_dir=${line#'local-doc-root: '}
 
 mkdir -p ./funflow-docs/docs
