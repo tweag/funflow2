@@ -20,7 +20,7 @@ jobs:
       - name: Build funflow library
         run: nix-build -A funflow
       - name: Build funflow tests 
-      - run: |
+        run: |
           echo Build tests
           TESTS_PATH=$(nix-build -A funflow-tests)
           echo Running tests
