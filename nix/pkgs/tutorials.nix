@@ -2,7 +2,7 @@
   funflow-tutorial
 }:
 runCommand "generate-funflow-tutorial" {
-  src = ../funflow-tutorial;
+  src = ../../funflow-tutorial;
   buildInputs = [
     funflow-tutorial.quick-reference
     funflow-tutorial.tutorial1
@@ -11,9 +11,9 @@ runCommand "generate-funflow-tutorial" {
   # wordcount reads a "words.txt" file from the working directory
   # Here, we take the example included with funflow-tutorial
 } ''
-  mkdir -p $out/docs/tutorial
+  mkdir -p $out/share/tutorial
   cp $src/words.txt .
-  quick-reference > $out/docs/tutorial/quick-reference.html
-  tutorial1 > $out/docs/tutorial/tutorial1.html
-  wordcount > $out/docs/tutorial/wordcount.html
+  quick-reference > $out/share/tutorial/quick-reference.html
+  tutorial1 > $out/share/tutorial/tutorial1.html
+  wordcount > $out/share/tutorial/wordcount.html
 ''
