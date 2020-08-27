@@ -2,11 +2,10 @@
 # import this whenever you want to import nixpkgs in this project
 
 # additional args
-{ system ? builtins.currentSystem,
-  overlays ? [],
-  ...
+{ system ? builtins.currentSystem
+, overlays ? [ ]
+, ...
 } @ otherNixpkgsArgs:
-
 let
   haskellNix = import ./haskell.nix-src.nix { };
 
@@ -21,8 +20,9 @@ let
   # haskell.nix provides some arguments to be passed to nixpkgs, including some
   # patches and also the haskell.nix functionality itself as an overlay. We
   # need to make sure that those overlays are included in the final set of nixpkgs args
-  nixpkgsArgs = haskellNix.nixpkgsArgs // otherNixpkgsArgs // {overlays = haskellNix.nixpkgsArgs.overlays ++ overlays; system=system;};
+  nixpkgsArgs = haskellNix.nixpkgsArgs // otherNixpkgsArgs // { overlays = haskellNix.nixpkgsArgs.overlays ++ overlays; system = system; };
 
   # import nixpkgs with haskell.nix overlays and custom args
   pkgs = import nixpkgsSrc nixpkgsArgs;
-in pkgs
+in
+pkgs

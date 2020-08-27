@@ -1,4 +1,4 @@
 let
-  nixpkgs = import ./nix/default.nix {};
+  nixpkgs = import ./nix/default.nix { };
 in
-  nixpkgs.funflow-shell
+nixpkgs.funflow-shell

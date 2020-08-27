@@ -1,7 +1,8 @@
-{ runCommand,
-  funflow-tutorial
+{ runCommand
+, funflow-tutorial
 }:
-runCommand "generate-funflow-tutorial" {
+runCommand "generate-funflow-tutorial"
+{
   src = ../../funflow-tutorial;
   buildInputs = [
     funflow-tutorial.quick-reference
