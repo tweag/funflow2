@@ -1,8 +1,9 @@
+# This is the main project default.nix
 { system ? builtins.currentSystem
 , pkgs ? import ./nix/default.nix { inherit system; }
 }:
 let
-  # These libraries get bundled into the API documentation
+  # These Haskell libraries will get bundled into the API documentation
   doc-libs = with pkgs; [
     funflow
     funflow-tests
@@ -19,11 +20,12 @@ with pkgs; rec {
   # Shell
   inherit funflow-shell;
 
-  # Tutorial exes (this is a set)
+  # Tutorial exes (this is a set and each attribute is a funflow-tutorial executable)
   inherit funflow-tutorial;
 
   # Documentation
   api-docs = haddock-combine { hspkgs = doc-libs; };
   tutorial-docs = pkgs.generate-funflow-tutorials;
+  # Combined API Docs + Tutorials
   combined-docs = pkgs.symlinkJoin { name = "funflow-combined-docs"; paths = [ api-docs pkgs.generate-funflow-tutorials ]; };
 }

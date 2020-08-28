@@ -1,3 +1,4 @@
+# Wrapper script for calling tutorial executables and bundling their html outputs
 { runCommand
 , funflow-tutorial
 }:

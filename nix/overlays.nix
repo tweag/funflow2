@@ -1,8 +1,14 @@
+# All overlays for this project should be defined in the list below:
+#
 [
   # Main project libraries
   (self: super:
     let
+      # The `project` local is the project created using haskell.nix. 
+      # We extract funflow's libraries from it explicitly below in order to 
+      # add extra system dependencies, etc.
       project = super.haskell-nix.stackProject {
+        buildInputs = [ super.git ];
         src = super.haskell-nix.haskellLib.cleanGit {
           name = "funflow-project";
           src = ./..;
@@ -29,6 +35,7 @@
       funflow-shell = project.shellFor ({
         exactDeps = true;
         STACK_IN_NIX_SHELL = true;
+        buildInputs = [ super.docker ];
       });
 
       # Other libraries defined in this repo
@@ -38,11 +45,14 @@
       external-executor = project.external-executor.components.library;
     }
   )
-
+  
+  # Wrapper script for building tutorial html docs
   (self: super:
     { generate-funflow-tutorials = super.callPackage ./pkgs/tutorials.nix { }; }
   )
 
+  # Utility function for combining haddock docs into a single closure with 
+  # relative hyperlinks (so they work on GitHub pages)
   (self: super:
     { haddock-combine = super.callPackage ./pkgs/haddock-combine.nix { }; }
   )

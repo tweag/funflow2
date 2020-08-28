@@ -1,7 +1,5 @@
-# nixpkgs with haskell.nix overlays
-# import this whenever you want to import nixpkgs in this project
-
-# additional args
+# nixpkgs along with haskell.nix and any other specified overlays.
+# Any additional nixpkgs args will be merged with the nixpkgs args from default.nix
 { system ? builtins.currentSystem
 , overlays ? [ ]
 , ...
