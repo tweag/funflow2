@@ -11,23 +11,21 @@ import Funflow
 
 ## Introduction
 
-`funflow` is a library to programmatically author workflows.
-
-Use `funflow` to write workflows as Direct Acyclic Graphs (DAG) of tasks.
-
-Backed by the powerful abstractions allowed by the Haskell language, `funflow` workflows have the great property of being tasks themselves.
+`funflow` is a Haskell library to setup tasks in a workflow, a Direct Acyclic Graph (DAG).
+These workflows have the great property of being tasks themselves.
 This allows to define modular workflows that you can compose together.
-_Write less, do more!_
+Type checking, external docker or nix tasks, task scheduling, caching, and other features that further simplify setting up your machinery.
+
+_Let's get started_
 
 ## From "workflows and tasks" to "flows"
 
 In `funflow`, there is no distinction between a workflow and a task.
-Indeed, we can compose tasks into bigger tasks, which would be called workflows.
-However, this workflow is nothing more than a task, which is then reusable to build bigger workflows.
-Because we can no longer make a distinction between a task and a workflow, we prefer to use the word _flow_.
+Indeed, we can compose tasks into bigger tasks, which could also be called workflows.
+Since this workflow is just another task, it can be integrated into even bigger workflows.
+Because we can no longer make a distinction between a task and a workflow, we simply use the word _flow_.
 
-A flow is a task that takes an input and produces an output.
-This library provides a unique and simple type to define flows:
+A flow takes an input and produces an output and `funflow` describes it with a unique and simple type:
 
 ```haskell
 flow :: Flow input output
@@ -40,33 +38,52 @@ For instance a flow working on numbers might have the following type signature:
 flow :: Flow Int Int
 ```
 
-taking an integer as input, and producing an integer as its output.
+It takes an integer as input, and producing an integer as its output.
+A flow that doesn't take any input can be written as:
+
+```haskell
+flow :: Flow () Int
+```
+
+It might, for example request some user input or download some data.
+
+## Effects
+
+Another feature of funflow `Flows` is that they are _effect-controlled_.
+In other words, the tasks that you chain together are tagged by what they do.
+Here are some examples:
+
+* pure tasks represent pure Haskell functions;
+* IO tasks have access to IO;
+* docker or nix tasks run an arbitrary commands in an external environment;
+* shell tasks execute tasks within the current user environment.
+
+The `Flow` type can assemble all effects or constrain them to specific subsets which is useful to achieve highly reproducible setups.
 
 ## How to make flows
 
-In order to build flows, use the function `toFlow` defined in the module `Funflow.Flow` (also exported in the module `Funflow`).
-This function can turn an _effect_ into a `Flow`.
+The function `toFlow` is used to construct a `Flow`.
+It is defined in the module `Funflow.Flow` but also exported in the top level module `Funflow`.
+It turns an _effect_ (including pure functions) into a `Flow`.
 
 But what is an effect?
-An effect is basically the representation of a computation.
-An effect is not per-se usable as a `Flow`: we have to _strand_ it to a flow manually using this `toFlow` function.
-
-> We'll get to that notion of _strand_ later on, when extending our flow with custom effects.
-
-The most basic exemple is the _PureEffect_.
-It represent a computation from a pure function, which has not "side effect" such as reading a file or running a command.
-
-For example, let us make a function that increments the input by 1.
+An effect is a datatype that represents some particular type of computation.
+The most basic effect, the datatype _PureEffect_, represents a pure function which has no _side effect_ such as reading a file or running a command.
+Here is a flow that increments the input by 1.
 
 ```haskell
 flow :: Flow Int Int
 flow = toFlow . PureEffect $ (+1)
 ```
 
+An effect is not automatically usable as a `Flow`.
+We have to _strand_ it into a `Flow`  manually using this `toFlow` function.
+And this is where a lot of magic happens because `Flow` can constrain which effects a flow can have while at the same time abstracting over them.
+We'll get the notion of _strand_ later when we get to defining custom effects.
+
 #### Smart constructors
 
-All effects internally implemented in `funflow` can be created using _smart constructors_.
-
+All effects that are implemented in `funflow` can be alternatively created using _smart constructors_.
 For instance instead of the previous
 
 ```haskell
@@ -81,12 +98,12 @@ flow :: Flow Int Int
 flow = pureFlow (+1)
 ```
 
-this directly makes a flow: the effect is created and _stranded_ internally (we will talk about strands later on).
+this directly makes a flow: the effect is created and _stranded_.
 
 ### Execute a flow
 
 Everything needed to run flows is available in the module `Funflow.Run`.
-In order to run a flow, use the function `runFlow`.
+The function `runFlow` is the simples way to execute a flow.
 It is used as follow:
 
 ```haskell
