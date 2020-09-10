@@ -16,6 +16,7 @@
       };
     in
     {
+      # TODO - Remove docker buildInput here since it is only needed by the docker-client
       funflow = project.funflow.components.library.overrideAttrs (old:
         { buildInputs = old.buildInputs ++ [ super.docker ]; }
       );
@@ -43,6 +44,9 @@
       cas-hashable = project.cas-hashable.components.library;
       cas-hashable-s3 = project.cas-hashable-s3.components.library;
       external-executor = project.external-executor.components.library;
+      docker-client = project.docker-client.components.library.overrideAttrs (old:
+        { buildInputs = old.buildInputs ++ [ super.docker ]; }
+      );
     }
   )
   

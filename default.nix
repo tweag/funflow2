@@ -11,11 +11,12 @@ let
     cas-hashable
     cas-hashable-s3
     external-executor
+    docker-client
   ];
 in
 with pkgs; rec {
   # Libraries
-  inherit funflow funflow-tests cas-store cas-hashable cas-hashable-s3 external-executor;
+  inherit funflow funflow-tests cas-store cas-hashable cas-hashable-s3 external-executor docker-client;
 
   # Shell
   inherit funflow-shell;

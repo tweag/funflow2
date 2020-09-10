@@ -1,0 +1,45 @@
+name: docker-client
+version: 2.0.0
+synopsis: Funflow's internal docker engine client
+description: See README at <https://github.com/tweag/funflow2>
+maintainer: Dorran Howell <dorran.howell@tweag.io>
+github: tweag/funflow2
+category: Development
+
+ghc-options: -Wall
+
+dependencies:
+  - base >=4.6 && <5
+  - text
+  - directory
+  - path
+  - path-io
+  - bytestring
+  - http-client
+  - http-conduit
+  - string-conversions
+  - resourcet
+  - conduit
+  - conduit-extra
+  - tar-conduit
+  - http-types
+  - network
+  - aeson
+  - mtl
+  - unix-compat
+  - binary
+
+library:
+  source-dirs: src
+
+executables:
+  scratch:
+    main: app/Main.hs
+    source-dirs: .
+    dependencies:
+      - base >=4.6 && <5
+      - docker-client
+      - unix-compat
+      - text
+      - mtl
+    
