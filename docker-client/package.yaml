@@ -6,7 +6,8 @@ maintainer: Dorran Howell <dorran.howell@tweag.io>
 github: tweag/funflow2
 category: Development
 
-ghc-options: -Wall
+ghc-options:
+  - -Wall
 
 dependencies:
   - base >=4.6 && <5
@@ -42,4 +43,19 @@ executables:
       - unix-compat
       - text
       - mtl
-    
+
+tests:
+  test-docker-client:
+    main: Test.hs
+    source-dirs: test
+    dependencies:
+      - base >=4.6 && <5
+      - docker-client
+      - text
+      - mtl
+      - tasty
+      - tasty-hunit
+      - http-types
+      - temporary
+      - directory
+      - unix-compat
