@@ -5,7 +5,7 @@ import Data.Either (isLeft, isRight)
 import Data.List
 import Data.Ord
 import qualified Data.Text as T
-import Funflow.Docker (ContainerLogType (..), ContainerSpec (..), defaultContainerSpec, newDefaultDockerManager, removeContainer, runContainer, saveContainerArchive, saveContainerLogs)
+import Docker.API.Client (ContainerLogType (..), ContainerSpec (..), defaultContainerSpec, newDefaultDockerManager, removeContainer, runContainer, saveContainerArchive, saveContainerLogs)
 import GHC.IO.Handle (Handle)
 import Network.HTTP.Client (Manager)
 import System.Directory (doesDirectoryExist, doesFileExist, getCurrentDirectory, listDirectory)

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 
-module Funflow.Docker.Internal.Client where
+module Docker.API.Client.Internal.Client where
 
 import Conduit (filterC, mapC)
 import Control.Monad.Except
@@ -16,7 +16,7 @@ import Data.Conduit.Combinators (sinkFile, sinkNull)
 import qualified Data.Conduit.Tar as Tar
 import Data.Conduit.Zlib (ungzip)
 import qualified Data.Text as T
-import Funflow.Docker.Internal.Schemas (ContainerId, CreateContainer (..), CreateContainerResponse (..), HostConfig (..), WaitContainerResponse (..))
+import Docker.API.Client.Internal.Schemas (ContainerId, CreateContainer (..), CreateContainerResponse (..), HostConfig (..), WaitContainerResponse (..))
 import Network.HTTP.Client
 import Network.HTTP.Client.Internal (makeConnection)
 import qualified Network.HTTP.Conduit as HTTPC

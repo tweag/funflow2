@@ -2,15 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Aeson schemas for communicating with the Docker Engine API
-module Funflow.Docker.Internal.Schemas
-where
+module Docker.API.Client.Internal.Schemas where
 
 import Data.Aeson
 import qualified Data.Text as T
 import GHC.Generics (Generic)
 
--- | Constructs default Aeson options for serializing and deserializing objects in this module. This method 
--- drops the first nPrefix characters from record accessors in your Haskell record before serializing to 
+-- | Constructs default Aeson options for serializing and deserializing objects in this module. This method
+-- drops the first nPrefix characters from record accessors in your Haskell record before serializing to
 -- JSON and uses the shortened field names to match record accessors when deserializing.
 dockerParseOptions :: Int -> Options
 dockerParseOptions nPrefix = defaultOptions {fieldLabelModifier = drop nPrefix}
@@ -58,7 +57,6 @@ data WaitContainerError = WaitContainerError
 -----------------------------------------------------------------------------
 ----------- BEGIN LONG LIST OF SERIALIZER/DESERIALIZER INSTANCES-------------
 -----------------------------------------------------------------------------
-
 
 instance FromJSON HostConfig where parseJSON = genericParseJSON $ dockerParseOptions 10
 

@@ -4,12 +4,12 @@ Docker client library used internally by Funflow.
 
 ## Usage
 
-This library exposes a simple API via the Funflow.Docker module.
+This library exposes a simple API via the Docker.API.Client module.
 
 ### Example: Running a container
 
 ```haskell
-import Funflow.Docker 
+import Docker.API.Client 
 
 import System.Info (os)
 

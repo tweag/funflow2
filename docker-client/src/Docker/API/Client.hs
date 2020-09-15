@@ -1,4 +1,4 @@
-module Funflow.Docker
+module Docker.API.Client
   ( dockerAPIVersion,
     OS,
     defaultDockerUnixSocket,
@@ -16,7 +16,7 @@ module Funflow.Docker
   )
 where
 
-import Funflow.Docker.Internal.Client
+import Docker.API.Client.Internal.Client
   ( ClientErrorMonad,
     ContainerLogType (..),
     ContainerSpec (..),
