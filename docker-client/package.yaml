@@ -45,7 +45,7 @@ executables:
       - mtl
 
 tests:
-  test-docker-client:
+  primary:
     main: Test.hs
     source-dirs: test
     dependencies:

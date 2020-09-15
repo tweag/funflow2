@@ -43,7 +43,7 @@ defaultDockerUnixSocket = "/var/run/docker.sock"
 -- on your system.
 newDefaultDockerManager :: OS -> IO Manager
 -- TODO: default uri and manager for windows (which uses tcp instead of a socket)
-newDefaultDockerManager "windows" = undefined
+newDefaultDockerManager "mingw32" = undefined
 newDefaultDockerManager _ = newUnixDomainSocketManager defaultDockerUnixSocket
 
 -- | Creates a new http connection manager from a file path to a unix socket
@@ -387,7 +387,6 @@ removeContainer manager isForceful alsoRemoveVolumes cid = do
           force = if isForceful then "true" else "false"
           v = if alsoRemoveVolumes then "true" else "false"
   response <- liftIO $ httpLbs request manager
-  liftIO $ print $ responseBody response
   let result
         | status == status204 = return cid
         | otherwise = throwError $ ContainerCreationFailedError $ formatRequestError status body
