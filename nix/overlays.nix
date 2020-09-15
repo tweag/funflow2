@@ -47,6 +47,9 @@
       docker-client = project.docker-client.components.library.overrideAttrs (old:
         { buildInputs = old.buildInputs ++ [ super.docker ]; }
       );
+      docker-client-tests = project.docker-client.components.tests.primary.overrideAttrs (old:
+        { buildInputs = old.buildInputs ++ [ super.docker ]; }
+      );
     }
   )
   
