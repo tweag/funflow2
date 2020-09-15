@@ -2,6 +2,37 @@
 
 Docker client library used internally by Funflow.
 
+## Build and Installation
+
+### Dependencies
+
+This library's default connection manager expects the Docker Engine service to be available at runtime. For example, on linux and osx, it expects the default docker unix socket to exist. See the documentation at https://docs.docker.com/config/daemon/ for more details on how to
+start up docker.
+
+### Build
+
+`docker-client` can be built using the repository's nix packaging:
+
+
+**Library:** 
+```bash
+$ nix-build -A docker-client ../default.nix 
+```
+
+
+**Tests:** 
+```bash
+# Test executable
+$ nix-build -A docker-client-tests ../default.nix 
+# Unit tests
+$ result/bin/primary --pattern 'unit'
+# Integration tests
+$ result/bin/primary --pattern 'integration'
+# All tests
+$ result/bin/primary
+```
+
+
 ## Usage
 
 This library exposes a simple API via the Docker.API.Client module.
