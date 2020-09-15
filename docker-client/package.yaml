@@ -33,17 +33,6 @@ dependencies:
 library:
   source-dirs: src
 
-executables:
-  scratch:
-    main: app/Main.hs
-    source-dirs: .
-    dependencies:
-      - base >=4.6 && <5
-      - docker-client
-      - unix-compat
-      - text
-      - mtl
-
 tests:
   primary:
     main: Test.hs
