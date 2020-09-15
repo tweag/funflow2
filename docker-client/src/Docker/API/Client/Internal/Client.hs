@@ -73,6 +73,8 @@ data DockerClientError
     NonZeroExitCode String
   | -- | The docker engine API responded with an error when we attempted to get a container's logs
     GetContainerLogsError String
+  | -- | The docker engine API responded with an error when we attempted to pull an image
+    ImagePullError String
   deriving (Show)
 
 -- | Wrapper for composing operations which return an Either DockerClientError a
@@ -133,10 +135,11 @@ containerSpecToCreateContainer spec =
 
 -- | Analagous to the `docker run` command. Runs a container using the input HTTP connection manager and waits
 -- until it exits. For more complex use cases you can also use the individual actions that comprise this function.
+-- Note that this currently always tries to pull the container's image.
 runContainer :: Manager -> ContainerSpec -> ClientErrorMonad ContainerId
 runContainer manager spec = do
   let payload = containerSpecToCreateContainer spec
-  cid <- submitCreateContainer manager payload >>= parseCreateContainerResult
+  cid <- pullImage manager (image spec) >> submitCreateContainer manager payload >>= parseCreateContainerResult
   startContainer manager cid >>= submitWaitContainer manager >>= parseWaitContainerResult >>= checkExitStatusCode
   return cid
 
@@ -170,6 +173,25 @@ saveContainerArchive manager uid gid itemPath outPath cid = do
   case result of
     Just e -> throwError e
     Nothing -> return ()
+
+-- | Pulls an image from a remote registry (similar to a `docker pull` command). This currently
+-- only supports public registries (e.g. DockerHub).
+pullImage :: Manager -> T.Text -> ClientErrorMonad ()
+pullImage manager image = do
+  let request =
+        setQueryString [("fromImage", Just (B.pack $ T.unpack image))] $
+          defaultRequest
+            { method = "POST",
+              path = B.pack $ "/" ++ dockerAPIVersion ++ "/images/create"
+            }
+  response <- liftIO $ httpLbs request manager
+  let result
+        | status == status200 = return ()
+        | otherwise = throwError $ ImagePullError $ formatRequestError status body
+        where
+          body = responseBody response
+          status = responseStatus response
+  result
 
 data ContainerLogType = Stdout | StdErr | Both
 

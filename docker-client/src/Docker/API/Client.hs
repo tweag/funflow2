@@ -13,6 +13,7 @@ module Docker.API.Client
     removeContainer,
     saveContainerLogs,
     ContainerLogType (..),
+    pullImage,
   )
 where
 
@@ -27,6 +28,7 @@ import Docker.API.Client.Internal.Client
     dockerAPIVersion,
     newDefaultDockerManager,
     newUnixDomainSocketManager,
+    pullImage,
     removeContainer,
     runContainer,
     saveContainerArchive,

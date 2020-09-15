@@ -5,7 +5,7 @@ import Data.Either (isLeft, isRight)
 import Data.List
 import Data.Ord
 import qualified Data.Text as T
-import Docker.API.Client (ContainerLogType (..), ContainerSpec (..), defaultContainerSpec, newDefaultDockerManager, removeContainer, runContainer, saveContainerArchive, saveContainerLogs)
+import Docker.API.Client (ContainerLogType (..), ContainerSpec (..), defaultContainerSpec, newDefaultDockerManager, pullImage, removeContainer, runContainer, saveContainerArchive, saveContainerLogs)
 import GHC.IO.Handle (Handle)
 import Network.HTTP.Client (Manager)
 import System.Directory (doesDirectoryExist, doesFileExist, getCurrentDirectory, listDirectory)
@@ -87,7 +87,11 @@ dockerIntegrationTests :: IO Manager -> TestTree
 dockerIntegrationTests managerIO =
   testGroup
     "Docker integration tests"
-    [ testCase "Run container valid command" $ do
+    [ testCase "Pull a test image" $ do
+        manager <- managerIO
+        result <- runExceptT $ pullImage manager testImage
+        assertBool ("Failed with error " ++ show result) $ isRight result,
+      testCase "Run container valid command" $ do
         manager <- managerIO
         result <- runExceptT $ runContainer manager containerWithSuccessfulCommand
         assertBool ("Failed with error " ++ show result) $ isRight result,
