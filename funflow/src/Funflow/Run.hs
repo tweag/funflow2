@@ -135,7 +135,7 @@ interpretStoreTask store storeTask = case storeTask of
 -- ** @DockerTask@ interpreter
 
 -- | Interpret docker task
-interpretDockerTask :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> DockerTask i o -> a i o
+interpretDockerTask :: (Arrow a, HasKleisliIO m a, HasCallStack) => CS.ContentStore -> DockerTask i o -> a i o
 interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, DE.args})) =
   liftKleisliIO $ \(DockerTaskInput {DE.inputBindings, DE.argsVals}) ->
     -- Check args placeholder fullfillment, right is value, left is unfullfilled label
@@ -154,8 +154,7 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
         if any isLeft argsFilled
           then
             let unfullfilledLabels = [label | (Left label) <- argsFilled]
-             in -- TODO gracefully exit
-                error $ "Missing arguments with labels: " ++ show unfullfilledLabels
+             in throwString $ "Docker task failed with error: missing arguments with labels: " ++ show unfullfilledLabels
           else do
             let argsFilledChecked = [argVal | (Right argVal) <- argsFilled]
             manager <- newDefaultDockerManager (OS os)
