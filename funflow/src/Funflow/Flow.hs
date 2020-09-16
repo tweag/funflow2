@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
@@ -22,7 +23,9 @@ module Funflow.Flow
 where
 
 import Control.Arrow (Arrow, ArrowChoice)
+import Control.Exception.Safe (StringException)
 import Control.Kernmantle.Caching (ProvidesCaching)
+import Control.Kernmantle.Error (ThrowEffect, TryEffect)
 import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, strand)
 import Control.Monad.IO.Class (MonadIO)
 import Data.CAS.ContentStore as CS
@@ -45,6 +48,8 @@ type RequiredCoreTasks m =
   '[ -- Basic requirement
      Arrow,
      ArrowChoice,
+     ThrowEffect StringException,
+     TryEffect StringException,
      -- Support IO
      HasKleisli m,
      -- Support caching
