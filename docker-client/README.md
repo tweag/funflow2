@@ -57,5 +57,5 @@ main = do
   result <- runExceptT $ runContainer manager container
   case result of
     Left err -> print err
-    Right cid -> print "Run succeeded! The container is was " ++ cid
+    Right containerId -> print "Run succeeded! The container id was " ++ containerId
 ```
