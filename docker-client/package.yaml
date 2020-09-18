@@ -1,5 +1,5 @@
 name: docker-client
-version: 2.0.0
+version: 0.1.0
 synopsis: Funflow's internal docker engine client
 description: See README at <https://github.com/tweag/funflow2>
 maintainer: Dorran Howell <dorran.howell@tweag.io>
