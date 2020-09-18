@@ -4,7 +4,7 @@ module Docker.API.Client
     defaultDockerUnixSocket,
     newDefaultDockerManager,
     newUnixDomainSocketManager,
-    DockerClientError,
+    DockerClientError (..),
     ClientErrorMonad,
     ContainerSpec (..),
     defaultContainerSpec,
@@ -17,20 +17,24 @@ module Docker.API.Client
   )
 where
 
-import Docker.API.Client.Internal.Client
-  ( ClientErrorMonad,
-    ContainerLogType (..),
-    ContainerSpec (..),
-    DockerClientError,
-    OS (..),
-    defaultContainerSpec,
-    defaultDockerUnixSocket,
-    dockerAPIVersion,
+import Docker.API.Client.Internal.Connection
+  ( defaultDockerUnixSocket,
     newDefaultDockerManager,
     newUnixDomainSocketManager,
+  )
+import Docker.API.Client.Internal.Requests
+  ( dockerAPIVersion,
     pullImage,
     removeContainer,
     runContainer,
     saveContainerArchive,
     saveContainerLogs,
+  )
+import Docker.API.Client.Internal.Types
+  ( ClientErrorMonad,
+    ContainerLogType (..),
+    ContainerSpec (..),
+    DockerClientError (..),
+    OS (..),
+    defaultContainerSpec,
   )
