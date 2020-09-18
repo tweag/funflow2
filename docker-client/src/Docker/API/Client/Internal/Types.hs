@@ -63,6 +63,6 @@ defaultContainerSpec img =
 
 data ContainerLogType = Stdout | StdErr | Both
 
--- | Possible types of streams returned by the Docker Engine API attatch and logs endpoints. Used only internally
+-- | Possible types of streams returned by the Docker Engine API attach and logs endpoints. Used only internally
 -- for parsing the stream metadata returned by docker.
 data DockerStreamType = DockerStreamStdIn | DockerStreamStdOut | DockerStreamStdErr
