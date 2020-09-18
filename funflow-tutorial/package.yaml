@@ -51,4 +51,16 @@ executables:
       - containers
     build-tools:
       - inliterate:inlitpp
-  
+  tf-docker:
+    main: src/TensorflowDocker.hs
+    source-dirs: .
+    dependencies:
+      - base >=4.6 && <5
+      - funflow-tutorial
+      - cas-store
+      - text
+      - directory
+      - path
+      - path-io
+    build-tools:
+      - inliterate:inlitpp
