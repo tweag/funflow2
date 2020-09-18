@@ -5,7 +5,7 @@ import Data.Either (isLeft, isRight)
 import Data.List
 import Data.Ord
 import qualified Data.Text as T
-import Docker.API.Client (ContainerLogType (..), ContainerSpec (..), defaultContainerSpec, newDefaultDockerManager, pullImage, removeContainer, runContainer, saveContainerArchive, saveContainerLogs)
+import Docker.API.Client (ContainerLogType (..), ContainerSpec (..), OS (..), defaultContainerSpec, newDefaultDockerManager, pullImage, removeContainer, runContainer, saveContainerArchive, saveContainerLogs)
 import GHC.IO.Handle (Handle)
 import Network.HTTP.Client (Manager)
 import System.Directory (doesDirectoryExist, doesFileExist, getCurrentDirectory, listDirectory)
@@ -21,7 +21,7 @@ tests :: TestTree
 tests = testGroup "Tests" [withResource manager cleanupManager dockerIntegrationTests, unitTests]
 
 manager :: IO Manager
-manager = newDefaultDockerManager os
+manager = newDefaultDockerManager (OS os)
 
 -- This is required for using tasy's withResource, but doesn't
 -- actually need to do anything since Managers handle closing

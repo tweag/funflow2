@@ -1,6 +1,6 @@
 module Docker.API.Client
   ( dockerAPIVersion,
-    OS,
+    OS (..),
     defaultDockerUnixSocket,
     newDefaultDockerManager,
     newUnixDomainSocketManager,
@@ -22,7 +22,7 @@ import Docker.API.Client.Internal.Client
     ContainerLogType (..),
     ContainerSpec (..),
     DockerClientError,
-    OS,
+    OS (..),
     defaultContainerSpec,
     defaultDockerUnixSocket,
     dockerAPIVersion,

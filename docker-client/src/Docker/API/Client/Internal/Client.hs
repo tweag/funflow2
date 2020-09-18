@@ -33,7 +33,7 @@ dockerAPIVersion :: String
 dockerAPIVersion = "v1.40"
 
 -- | Alias for the system type returned by System.Info.os
-type OS = String
+newtype OS = OS String
 
 -- | Default docker socket path on unix systems
 defaultDockerUnixSocket :: FilePath
@@ -43,7 +43,7 @@ defaultDockerUnixSocket = "/var/run/docker.sock"
 -- on your system.
 newDefaultDockerManager :: OS -> IO Manager
 -- TODO: default uri and manager for windows (which uses tcp instead of a socket)
-newDefaultDockerManager "mingw32" = undefined
+newDefaultDockerManager (OS "mingw32") = undefined
 newDefaultDockerManager _ = newUnixDomainSocketManager defaultDockerUnixSocket
 
 -- | Creates a new http connection manager from a file path to a unix socket
