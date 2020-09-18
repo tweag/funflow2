@@ -68,10 +68,10 @@ getSectionLength = fromIntegral . runGet getWord32be . LBS.fromStrict
 parseDockerStream :: B.ByteString -> (DockerStreamType, Int, B.ByteString)
 parseDockerStream bytes =
   let parts = splitToParts bytes
-      st = getStreamType $ fst parts
-      len = getSectionLength $ fst $ snd parts
-      extra = snd $ snd parts
-   in (st, len, extra)
+      streamType = getStreamType $ fst parts
+      sectionLength = getSectionLength $ fst $ snd parts
+      dataBytes = snd $ snd parts
+   in (streamType, sectionLength, dataBytes)
   where
     splitToParts b = (B.singleton $ B.head b, B.splitAt 4 $ snd $ B.splitAt 4 b)
 
@@ -88,15 +88,15 @@ parseMultiplexedDockerStream = loop B.empty
       case input of
         Nothing -> return ()
         Just meta -> do
-          let (streamType, sectionLength, extra) = parseDockerStream meta
+          let (streamType, sectionLength, dataBytes) = parseDockerStream meta
           -- This ensures that we have at least as much data as our section (could be more)
-          section <- readUpstream extra sectionLength
+          section <- readUpstream dataBytes sectionLength
           case section of
             Nothing -> return ()
             Just s -> do
-              let (expected, additional) = B.splitAt sectionLength s
-              yield (streamType, expected)
-              loop additional
+              let (expectedBytes, additionalBytes) = B.splitAt sectionLength s
+              yield (streamType, expectedBytes)
+              loop additionalBytes
 
 -- | Creates a DockerStreamType filter using the input ContainerLogType
 createLogTypeFilter :: ContainerLogType -> ((DockerStreamType, a) -> Bool)
