@@ -11,24 +11,25 @@ ghc-options:
 
 dependencies:
   - base >=4.6 && <5
-  - text
-  - directory
-  - path
-  - path-io
+  - aeson
+  - binary
   - bytestring
-  - http-client
-  - http-conduit
-  - string-conversions
-  - resourcet
   - conduit
   - conduit-extra
-  - tar-conduit
+  - directory
+  - http-client
+  - http-conduit
   - http-types
-  - network
-  - aeson
   - mtl
+  - network
+  - path
+  - path-io
+  - resourcet
+  - string-conversions
+  - tar-conduit
+  - text
   - unix-compat
-  - binary
+
 
 library:
   source-dirs: src
@@ -39,12 +40,12 @@ tests:
     source-dirs: test
     dependencies:
       - base >=4.6 && <5
+      - directory
       - docker-client
-      - text
+      - http-types
       - mtl
       - tasty
       - tasty-hunit
-      - http-types
       - temporary
-      - directory
+      - text
       - unix-compat
