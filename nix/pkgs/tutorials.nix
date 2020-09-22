@@ -9,6 +9,7 @@ runCommand "generate-funflow-tutorial"
     funflow-tutorial.quick-reference
     funflow-tutorial.tutorial1
     funflow-tutorial.tutorial2
+    funflow-tutorial.error-handling
     funflow-tutorial.wordcount
   ];
   # wordcount reads a "words.txt" file from the working directory
@@ -19,5 +20,6 @@ runCommand "generate-funflow-tutorial"
   quick-reference > $out/share/tutorial/quick-reference.html
   tutorial1 > $out/share/tutorial/tutorial1.html
   tutorial2 > $out/share/tutorial/tutorial2.html
+  error-handling > $out/share/tutorial/error-handling.html
   wordcount > $out/share/tutorial/wordcount.html
 ''

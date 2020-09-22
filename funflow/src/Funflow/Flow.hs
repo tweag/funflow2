@@ -23,7 +23,7 @@ module Funflow.Flow
 where
 
 import Control.Arrow (Arrow, ArrowChoice)
-import Control.Exception.Safe (StringException)
+import Control.Exception.Safe (SomeException)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Error (ThrowEffect, TryEffect)
 import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, strand)
@@ -48,8 +48,8 @@ type RequiredCoreTasks m =
   '[ -- Basic requirement
      Arrow,
      ArrowChoice,
-     ThrowEffect StringException,
-     TryEffect StringException,
+     ThrowEffect SomeException,
+     TryEffect SomeException,
      -- Support IO
      HasKleisli m,
      -- Support caching

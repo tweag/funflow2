@@ -40,15 +40,24 @@ executables:
       - funflow-tutorial
     build-tools:
       - inliterate:inlitpp
+  error-handling:
+    main: src/ErrorHandling.hs
+    source-dirs: .
+    dependencies:
+      - base >=4.6 && <5
+      - funflow-tutorial
+      - cas-store
+      - safe-exceptions
+    build-tools:
+      - inliterate:inlitpp
   wordcount:
     main: src/WordCount.hs
     source-dirs: .
     dependencies:
       - base >=4.6 && <5
       - funflow-tutorial
-      - regex-posix 
+      - regex-posix
       - text
       - containers
     build-tools:
       - inliterate:inlitpp
-  

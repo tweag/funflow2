@@ -28,11 +28,11 @@ let
     ## Contents
 
     1. Tutorials
-        1. [Getting Started](./tutorial/quick-reference.html)
-        2. [WordCount](./tutorial/tutorial1.html)
-        3. [Quick Reference](./tutorial/quick-reference.html)
+        1. [Quick Reference](./tutorial/quick-reference.html)
+        2. [Getting Started](./tutorial/tutorial1.html)
+        3. [Error handling](./tutorial/error-handling.html)
         4. [Advanced Tutorial](./tutorial/tutorial2.html)
-
+        5. [WordCount](./tutorial/wordcount.html)
     2. [API Docs](./doc/index.html)
   '';
 in runCommand "generate-doc-index" {

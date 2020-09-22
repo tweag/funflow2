@@ -21,6 +21,7 @@ module Funflow.Run
 where
 
 import Control.Arrow (Arrow, arr)
+import Control.Exception.Safe (throwString)
 import Control.Kernmantle.Caching (localStoreWithId)
 import Control.Kernmantle.Rope
   ( HasKleisliIO,
@@ -52,6 +53,7 @@ import Funflow.Tasks.Docker
 import qualified Funflow.Tasks.Docker as DE
 import Funflow.Tasks.Simple (SimpleTask (IOTask, PureTask))
 import Funflow.Tasks.Store (StoreTask (GetDir, PutDir))
+import GHC.Stack (HasCallStack)
 import Path (Abs, Dir, Path, absdir, parseRelDir, toFilePath, (</>))
 import Path.IO (copyDirRecur)
 import System.Directory (removeDirectory)
