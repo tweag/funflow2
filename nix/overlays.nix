@@ -28,6 +28,7 @@
       funflow-tutorial = {
         quick-reference = project.funflow-tutorial.components.exes.quick-reference;
         tutorial1 = project.funflow-tutorial.components.exes.tutorial1;
+        tutorial2 = project.funflow-tutorial.components.exes.tutorial2;
         wordcount = project.funflow-tutorial.components.exes.wordcount;
       };
 

@@ -52,40 +52,42 @@ A `Task` can be a simple Haskell function, a database query, a command to run in
 There are several different types of tasks in Funflow, each describing a specific type of computation. 
 Tasks are defined in the `Funflow.Tasks` subpackage.
 The most basic task, the datatype `PureTask`, represents  a pure Haskell function which has no _side effects_ such as reading a file or running a command.
+Other task datatypes include `IOTask`, which runs a Haskell function which can perform IO (e.g. reading a file), and `DockerTask`, which runs a 
+[Docker](https://docs.docker.com/get-docker/) container.
 
 
 ## How to create Flows
 
 The function `toFlow` is used to construct a `Flow`.
 It can be imported from the top level `Funflow` module and is defined in `Funflow.Flow`.
-It integrates a `Task` into a `Flow` which can then be composed with other flows into a larger, final `Flow`.
+It integrates a `Task` into a `Flow` which can then be composed with other flows into a larger, final `Flow` DAG.
 
 Here is a `Flow` that runs a `PureTask`, incrementing its input by 1.
 
-```haskell
+```haskell top
 flow :: Flow Int Int
 flow = toFlow $ PureTask (+1)
 ```
 
 In this example, `flow` is essentially a DAG with one node, `PureTask (+1)``. 
-And here is a flow that runs a simple IO task.
+Here is a flow that runs a simple IO task which prints its input.
 
 ```
 flow :: Flow String ()
 flow = toFlow $ IOTask putStrLn
 ```
 
-One-node `Flows` with a specific task type as the ones above can also be created directly.
+Single-task `Flows` like the ones above can also be created directly using their smart constructors.
 For instance, instead of the previous, one can write:
 
-```haskell top
+```
 flow :: Flow Int Int
 flow = pureFlow (+1)
 ```
 
 or
 
-```haskell top
+```
 flow :: Flow String ()
 flow = ioFlow putStrLn
 ```
@@ -95,7 +97,7 @@ Smart constuctors for other task types are defined in `Funflow.Flow`.
 ## Execute a flow
 
 Everything needed to run flows is available in the module `Funflow.Run`.
-The function `runFlow` is the simplest way to execute a flow:
+The function `runFlow` is the main way to execute a flow:
 
 ```haskell
 runFlow flow input
@@ -107,7 +109,6 @@ where
 - `input` is the input, with the same type as the input type of `flow`
 
 It will return a result of type `IO output` where `output` is the output type of `flow`.
-Why is it an `IO output`?
 Let's run our flow from earlier:
 
 ```haskell eval
@@ -116,17 +117,6 @@ runFlow flow (1 :: Int) :: IO Int
 
 As expected, it returned 2.
 
-## Tasks, Effects and Interpretation
-
-In technical terms, funflow `Tasks` describe a specific type of computation and can be seen as _computational effects_.
-Tasks in funflow are then _interpreted_ at execution time.
-TODO: bring in load time.
-This means that we can separately specify __how__ a Task description is transformed into executable code.
-This means that the `Tasks` that you chain together are tagged by what they do.
-The `Flow` type can assemble all effects or constrain them to specific subsets which is useful to achieve highly reproducible workflows. 
-
-executed (i.e. its interpreter). The easiest way to get started with `funflow` is to 
-use the default set of task interpreters that it ships with, which is what the `runFlow` function 
-is doing above. Take a look at our [TODO developer documentation](TODO) to learn more about writing custom 
-interpreters.
-
+Astute readers may have noticed that the output of runFlow is of type `IO output` and not simply `output`.
+This wrapping of `output` in `IO` happens because runFlow uses a context in which all possible Task types can be
+executed. Since runFlow supports IO and Docker tasks, both of which utilize I/O, the output of runFlow is also of type `IO`.
