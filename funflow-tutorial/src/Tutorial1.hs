@@ -5,6 +5,7 @@
 
 import Lib
 import Funflow
+import Funflow.Tasks.Simple (SimpleTask( PureTask, IOTask ))
 ```
 
 # First steps with `funflow`
@@ -41,12 +42,10 @@ A flow that doesn't take any input can be written as:
 flow :: Flow () Int
 ```
 
-In order to build flows, use the function `toFlow` defined in the module `Funflow.Flow` (also exported in the module `Funflow`).
-This function can turn a _task_ into a `Flow`.
+Such a flow might request some user input or download some data.
 
-But what is a task?
-A task is basically the representation of a computation.
-A task is not per-se usable as a `Flow`: we have to _strand_ it to a flow manually using this `toFlow` function.
+
+## Tasks
 
 A `Flow` is a DAG comprising one or more `Tasks` which describe __what__ you would like to execute. 
 `funflow` works with a wide range of task granularities.
@@ -55,7 +54,7 @@ A `Task` can be a simple Haskell function, a database query, a command to run in
 There are several different types of tasks in Funflow, each describing a specific type of computation. 
 Tasks are defined in the `Funflow.Tasks` subpackage.
 The most basic task, the datatype `PureTask`, represents  a pure Haskell function which has no _side effects_ such as reading a file or running a command.
-Other task datatypes include `IOTask`, which runs a Haskell function which can perform IO (e.g. reading a file), and `DockerTask`, which runs a 
+Other task datatypes include `IOTask`, which runs a Haskell function which can perform I/O (e.g. reading a file), and `DockerTask`, which runs a 
 [Docker](https://docs.docker.com/get-docker/) container.
 
 
@@ -72,7 +71,7 @@ flow :: Flow Int Int
 flow = toFlow $ PureTask (+1)
 ```
 
-In this example, `flow` is essentially a DAG with one node, `PureTask (+1)``. 
+In this example, `flow` is essentially a DAG with one node, `PureTask (+1)`. 
 Here is a flow that runs a simple IO task which prints its input.
 
 ```
@@ -123,3 +122,8 @@ As expected, it returned 2.
 Astute readers may have noticed that the output of runFlow is of type `IO output` and not simply `output`.
 This wrapping of `output` in `IO` happens because runFlow uses a context in which all possible Task types can be
 executed. Since runFlow supports IO and Docker tasks, both of which utilize I/O, the output of runFlow is also of type `IO`.
+
+## Next Steps
+
+With the basics out of the way, you should be ready to start writing your first `flows`. Check out the [wordcount flow tutorial](./wordcount.html)
+for a guided example.
