@@ -59,6 +59,11 @@
     { generate-funflow-tutorials = super.callPackage ./pkgs/tutorials.nix { }; }
   )
 
+  # Script for building documentation index.html page
+  (self: super:
+    { generate-doc-index = super.callPackage ./pkgs/doc-index.nix { }; }
+  )
+
   # Utility function for combining haddock docs into a single closure with 
   # relative hyperlinks (so they work on GitHub pages)
   (self: super:
