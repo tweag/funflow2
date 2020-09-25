@@ -38,8 +38,8 @@ formatRequestError status body =
     ++ " "
     ++ show body
 
--- | Analagous to the `docker run` command. Runs a container using the input HTTP connection manager, returning immediately.
--- To await the container use `awaitContainer`.
+-- | Similar to the `docker run` command. Runs a container in the background using the input HTTP connection manager, returning immediately.
+-- To wait for the container to exit use `awaitContainer`.
 -- Note that this currently always tries to pull the container's image.
 runContainer ::
   -- | The connection manager for the docker daemon. You can `Docker.API.Client.newDefaultDockerManager` to get a default
@@ -47,11 +47,9 @@ runContainer ::
   Manager ->
   ContainerSpec ->
   ClientErrorMonad ContainerId
-runContainer manager spec = do
+runContainer manager spec =
   let payload = containerSpecToCreateContainer spec
-  cid <- pullImage manager (image spec) >> submitCreateContainer manager payload >>= parseCreateContainerResult
-  startContainer manager cid >>= submitWaitContainer manager >>= parseWaitContainerResult >>= checkExitStatusCode
-  return cid
+   in pullImage manager (image spec) >> submitCreateContainer manager payload >>= parseCreateContainerResult >>= startContainer manager
 
 -- | Waits on a started container (e.g. via `runContainer`) until it exits, validating its exit code and returning an `DockerClientError` if
 -- the container exited with an error. This will work for both actively running containers and those which have already exited.
