@@ -1,11 +1,13 @@
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -20,12 +22,8 @@ where
 import Control.Arrow (Arrow, arr)
 import Control.Exception (bracket)
 import Control.External
-  ( Env (EnvExplicit),
-    ExternalTask (..),
-    OutputCapture (StdOutCapture),
+  ( ExternalTask (..),
     TaskDescription (..),
-    outParam,
-    uidParam,
   )
 import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (localStoreWithId)
@@ -38,14 +36,18 @@ import Control.Kernmantle.Rope
     (&),
     weave',
   )
+import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent), contentHash)
 import qualified Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as RC
 import Data.Either (isLeft)
 import qualified Data.Map.Lazy as Map
-import Data.String (fromString)
+import Data.String (IsString (fromString))
 import qualified Data.Text as T
+import Docker.API.Client (ContainerSpec (cmd), OS (OS), defaultContainerSpec, hostVolumes, newDefaultDockerManager, runContainer, saveContainerArchive, workingDir)
+import Funflow.Flow (Flow)
+import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
   ( Arg (Arg, Placeholder),
     DockerTask (DockerTask),
@@ -56,7 +58,6 @@ import Funflow.Tasks.Docker
 import qualified Funflow.Tasks.Docker as DE
 import Funflow.Tasks.Simple (SimpleTask (IOTask, PureTask))
 import Funflow.Tasks.Store (StoreTask (GetDir, PutDir))
-import Funflow.Flow (Flow)
 import Katip
   ( ColorStrategy (ColorIfTerminal),
     Severity (InfoS),
@@ -70,8 +71,10 @@ import Katip
     runKatipContextT,
   )
 import Path (Abs, Dir, Path, absdir, toFilePath)
-import System.IO (stdout)
 import Path.IO (copyDirRecur)
+import System.IO (stdout)
+import System.Info (os)
+import System.PosixCompat.User (getEffectiveGroupID, getEffectiveUserID)
 
 -- * Flow execution
 
@@ -193,27 +196,25 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
                 error $ "Missing arguments with labels: " ++ show unfullfilledLabels
           else do
             let argsFilledChecked = [argVal | (Right argVal) <- argsFilled]
-             in runTask store $
-                  ExternalTask
-                    { _etCommand = "docker",
-                      _etParams =
-                        [ "run",
-                          -- set the user in the container to the current user instead of root (prevent permission errors)
-                          "--user=" <> uidParam,
-                          -- set CWD in container
-                          "--workdir=/workdir"
-                        ]
-                          -- bind output (which is also the CWD in the container)
-                          ++ ["--volume=" <> outParam <> ":/workdir"]
-                          -- volumes to bind
-                          ++ [fromString $ "--volume=" <> (toFilePath $ CS.itemPath store item) <> ":/" <> (toFilePath mount) | VolumeBinding {DE.item, DE.mount} <- inputBindings]
-                          ++ [ -- docker image
-                               fromString . T.unpack $ image,
-                               -- command
-                               fromString . T.unpack $ command
-                             ]
-                          -- args
-                          ++ map (fromString . T.unpack) argsFilledChecked,
-                      _etEnv = EnvExplicit [],
-                      _etWriteToStdOut = StdOutCapture
+            manager <- newDefaultDockerManager (OS os)
+            uid <- getEffectiveUserID
+            gid <- getEffectiveGroupID
+            let defaultWorkingDir = "/workdir"
+                container =
+                  (defaultContainerSpec image)
+                    { workingDir = T.pack defaultWorkingDir,
+                      cmd = [command] <> map (fromString . T.unpack) argsFilledChecked,
+                      hostVolumes = map fromString ["--volume=" <> (toFilePath $ CS.itemPath store item) <> ":/" <> (toFilePath mount) | VolumeBinding {DE.item, DE.mount} <- inputBindings]
                     }
+            runDockerResult <- runExceptT $ runContainer manager container
+            case runDockerResult of
+              Left err -> error $ show err
+              Right containerId ->
+                let handleError hash = error $ "Could not put in store item " ++ show hash
+                    copyDockerContainer itemPath _ =
+                      do
+                        copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultWorkingDir (toFilePath itemPath) containerId
+                        case copyResult of
+                          Left ex -> error $ show ex
+                          Right _ -> return ()
+                 in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, runDockerResult)
