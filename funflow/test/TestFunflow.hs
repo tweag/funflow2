@@ -82,4 +82,4 @@ someDockerFlow = proc () -> do
 someDockerFlowWithInputs :: Flow () CS.Item
 someDockerFlowWithInputs = proc () -> do
   item <- dockerFlow (DockerTaskConfig {DE.image = "python", DE.command = "python", DE.args = ["-c", "with open('test.py', 'w') as f: f.write('print(\\'Hello world\\')')"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
-  dockerFlow (DockerTaskConfig {DE.image = "python", DE.command = "python", DE.args = ["/script/test.py"]}) -< DockerTaskInput {DE.inputBindings = [VolumeBinding {DE.item = item, DE.mount = [absdir|/script/|]}], DE.argsVals = mempty}
+  dockerFlow (DockerTaskConfig {DE.image = "python", DE.command = "python", DE.args = ["/script/workdir/test.py"]}) -< DockerTaskInput {DE.inputBindings = [VolumeBinding {DE.item = item, DE.mount = [absdir|/script/|]}], DE.argsVals = mempty}

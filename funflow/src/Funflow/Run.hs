@@ -20,12 +20,6 @@ module Funflow.Run
 where
 
 import Control.Arrow (Arrow, arr)
-import Control.Exception (bracket)
-import Control.External
-  ( ExternalTask (..),
-    TaskDescription (..),
-  )
-import Control.External.Executor (execute)
 import Control.Kernmantle.Caching (localStoreWithId)
 import Control.Kernmantle.Rope
   ( HasKleisliIO,
@@ -37,8 +31,7 @@ import Control.Kernmantle.Rope
     weave',
   )
 import Control.Monad.Except (runExceptT)
-import Control.Monad.IO.Class (liftIO)
-import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent), contentHash)
+import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent))
 import qualified Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as RC
 import Data.Either (isLeft)
@@ -58,21 +51,8 @@ import Funflow.Tasks.Docker
 import qualified Funflow.Tasks.Docker as DE
 import Funflow.Tasks.Simple (SimpleTask (IOTask, PureTask))
 import Funflow.Tasks.Store (StoreTask (GetDir, PutDir))
-import Katip
-  ( ColorStrategy (ColorIfTerminal),
-    Severity (InfoS),
-    Verbosity (V2),
-    closeScribes,
-    defaultScribeSettings,
-    initLogEnv,
-    mkHandleScribe,
-    permitItem,
-    registerScribe,
-    runKatipContextT,
-  )
 import Path (Abs, Dir, Path, absdir, toFilePath)
 import Path.IO (copyDirRecur)
-import System.IO (stdout)
 import System.Info (os)
 import System.PosixCompat.User (getEffectiveGroupID, getEffectiveUserID)
 
@@ -151,27 +131,6 @@ interpretStoreTask store storeTask = case storeTask of
 
 -- ** @DockerTask@ interpreter
 
--- | Run a task using external-executor, get a CS.Item
-runTask :: CS.ContentStore -> ExternalTask -> IO CS.Item
-runTask store task = do
-  -- Hash computation, then bundle it with the task
-  hash <- liftIO $ contentHash task
-  -- Katip machinery
-  handleScribe <- liftIO $ mkHandleScribe ColorIfTerminal stdout (permitItem InfoS) V2
-  let makeLogEnv = registerScribe "stdout" handleScribe defaultScribeSettings =<< initLogEnv "funflow" "executor"
-  _ <- bracket makeLogEnv closeScribes $ \logEnv -> do
-    let initialContext = ()
-    let initialNamespace = "funflow"
-    runKatipContextT logEnv initialContext initialNamespace $
-      execute store $
-        TaskDescription
-          { _tdOutput = hash,
-            _tdTask = task
-          }
-  -- Finish
-  CS.Complete completedItem <- CS.lookup store hash
-  return completedItem
-
 -- | Interpret docker task
 interpretDockerTask :: (Arrow a, HasKleisliIO m a) => CS.ContentStore -> DockerTask i o -> a i o
 interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, DE.args})) =
@@ -203,8 +162,8 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
                 container =
                   (defaultContainerSpec image)
                     { workingDir = T.pack defaultWorkingDir,
-                      cmd = [command] <> map (fromString . T.unpack) argsFilledChecked,
-                      hostVolumes = map fromString ["--volume=" <> (toFilePath $ CS.itemPath store item) <> ":/" <> (toFilePath mount) | VolumeBinding {DE.item, DE.mount} <- inputBindings]
+                      cmd = [command] <> argsFilledChecked,
+                      hostVolumes = map fromString [(toFilePath $ CS.itemPath store item) <> ":" <> (toFilePath mount) | VolumeBinding {DE.item, DE.mount} <- inputBindings]
                     }
             runDockerResult <- runExceptT $ runContainer manager container
             case runDockerResult of
@@ -216,5 +175,7 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
                         copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultWorkingDir (toFilePath itemPath) containerId
                         case copyResult of
                           Left ex -> error $ show ex
-                          Right _ -> return ()
-                 in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, runDockerResult)
+                          Right _ -> 
+                            -- TODO mv ./workdir/* ./
+                            return ()
+                 in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, containerId, runDockerResult)
