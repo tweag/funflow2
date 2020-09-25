@@ -15,6 +15,7 @@ dependencies:
   - cas-hashable
   - containers
   - data-default
+  - directory
   - docker-client
   - external-executor
   - hashable

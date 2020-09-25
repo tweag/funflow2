@@ -7,8 +7,9 @@
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 -- | This module defines how to run your flows
@@ -20,6 +21,7 @@ module Funflow.Run
 where
 
 import Control.Arrow (Arrow, arr)
+import Control.Exception (SomeException, try)
 import Control.Kernmantle.Caching (localStoreWithId)
 import Control.Kernmantle.Rope
   ( HasKleisliIO,
@@ -27,18 +29,19 @@ import Control.Kernmantle.Rope
     perform,
     runReader,
     untwine,
-    (&),
     weave',
+    (&),
   )
+import Control.Monad (filterM)
 import Control.Monad.Except (runExceptT)
 import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent))
 import qualified Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as RC
-import Data.Either (isLeft)
+import Data.Either (isLeft, rights)
 import qualified Data.Map.Lazy as Map
 import Data.String (IsString (fromString))
 import qualified Data.Text as T
-import Docker.API.Client (ContainerSpec (cmd), OS (OS), defaultContainerSpec, hostVolumes, newDefaultDockerManager, runContainer, saveContainerArchive, workingDir)
+import Docker.API.Client (ContainerSpec (cmd), OS (OS), awaitContainer, defaultContainerSpec, hostVolumes, newDefaultDockerManager, runContainer, saveContainerArchive, workingDir)
 import Funflow.Flow (Flow)
 import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
@@ -51,8 +54,9 @@ import Funflow.Tasks.Docker
 import qualified Funflow.Tasks.Docker as DE
 import Funflow.Tasks.Simple (SimpleTask (IOTask, PureTask))
 import Funflow.Tasks.Store (StoreTask (GetDir, PutDir))
-import Path (Abs, Dir, Path, absdir, toFilePath)
+import Path (Abs, Dir, Path, absdir, dirname, filename, parent, parseRelDir, parseRelFile, toFilePath, (</>))
 import Path.IO (copyDirRecur)
+import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, removeDirectory, renamePath)
 import System.Info (os)
 import System.PosixCompat.User (getEffectiveGroupID, getEffectiveUserID)
 
@@ -158,24 +162,46 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
             manager <- newDefaultDockerManager (OS os)
             uid <- getEffectiveUserID
             gid <- getEffectiveGroupID
-            let defaultWorkingDir = "/workdir"
+            let defaultWorkingDirName = "workdir"
+                defaultContainerWorkingDirPath = "/" ++ defaultWorkingDirName
                 container =
                   (defaultContainerSpec image)
-                    { workingDir = T.pack defaultWorkingDir,
+                    { workingDir = T.pack defaultContainerWorkingDirPath,
                       cmd = [command] <> argsFilledChecked,
                       hostVolumes = map fromString [(toFilePath $ CS.itemPath store item) <> ":" <> (toFilePath mount) | VolumeBinding {DE.item, DE.mount} <- inputBindings]
                     }
-            runDockerResult <- runExceptT $ runContainer manager container
+            runDockerResult <- runExceptT $ do
+              containerId <- runContainer manager container
+              awaitContainer manager containerId
+              return containerId
             case runDockerResult of
               Left err -> error $ show err
               Right containerId ->
                 let handleError hash = error $ "Could not put in store item " ++ show hash
                     copyDockerContainer itemPath _ =
                       do
-                        copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultWorkingDir (toFilePath itemPath) containerId
+                        copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultContainerWorkingDirPath (toFilePath itemPath) containerId
                         case copyResult of
                           Left ex -> error $ show ex
-                          Right _ -> 
-                            -- TODO mv ./workdir/* ./
+                          Right _ -> do
+                            -- Since docker will extract a TAR file of the container content, it creates a directory named after the requested directory's name
+                            -- In order to improve the user experience, funflow moves the content of said directory to the level of the CAS item directory
+
+                            -- Path to the folder extracted by `docker cp`
+                            itemWorkdirPath <- (itemPath </>) <$> (parseRelDir defaultWorkingDirName)
+                            -- List of directories/files inside
+                            itemWorkdirDirPaths <-
+                              filterM (doesDirectoryExist . toFilePath)
+                                =<< fmap rights . mapM (try @SomeException . fmap (itemWorkdirPath </>) . parseRelDir)
+                                =<< (listDirectory $ toFilePath itemWorkdirPath)
+                            itemWorkdirFilePaths <-
+                              filterM (doesFileExist . toFilePath)
+                                =<< fmap rights . mapM (try @SomeException . fmap (itemWorkdirPath </>) . parseRelFile)
+                                =<< (listDirectory $ toFilePath itemWorkdirPath)
+                            -- Move directories/files
+                            mapM_ (uncurry renamePath) [(toFilePath dir, toFilePath $ (parent . parent) dir </> dirname dir) | dir <- itemWorkdirDirPaths]
+                            mapM_ (uncurry renamePath) [(toFilePath file, toFilePath $ (parent . parent) file </> filename file) | file <- itemWorkdirFilePaths]
+                            -- After moving files and directories to item directory, remove the directory named after the working directory
+                            removeDirectory $ toFilePath itemWorkdirPath
                             return ()
                  in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, containerId, runDockerResult)
