@@ -38,8 +38,8 @@ formatRequestError status body =
     ++ " "
     ++ show body
 
--- | Analagous to the `docker run` command. Runs a container using the input HTTP connection manager and waits
--- until it exits. For more complex use cases you can also use the individual actions that comprise this function.
+-- | Analagous to the `docker run` command. Runs a container using the input HTTP connection manager, returning immediately.
+-- To await the container use `awaitContainer`.
 -- Note that this currently always tries to pull the container's image.
 runContainer ::
   -- | The connection manager for the docker daemon. You can `Docker.API.Client.newDefaultDockerManager` to get a default
@@ -52,6 +52,17 @@ runContainer manager spec = do
   cid <- pullImage manager (image spec) >> submitCreateContainer manager payload >>= parseCreateContainerResult
   startContainer manager cid >>= submitWaitContainer manager >>= parseWaitContainerResult >>= checkExitStatusCode
   return cid
+
+-- | Waits on a started container (e.g. via `runContainer`) until it exits, validating its exit code and returning an `DockerClientError` if
+-- the container exited with an error. This will work for both actively running containers and those which have already exited.
+awaitContainer ::
+  -- | The connection manager for the docker daemon. You can `Docker.API.Client.newDefaultDockerManager` to get a default
+  -- connection manager based on your operating system.
+  Manager ->
+  -- | The container id to await
+  ContainerId ->
+  ClientErrorMonad ()
+awaitContainer manager cid = submitWaitContainer manager cid >>= parseWaitContainerResult >>= checkExitStatusCode
 
 -- | Analagous to the `docker cp` command. Recursively copies contents at the specified path in the container to
 -- the provided output path on the host, setting file permissions to the specified user and group id.  Note that the
