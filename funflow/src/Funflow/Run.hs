@@ -21,7 +21,6 @@ module Funflow.Run
 where
 
 import Control.Arrow (Arrow, arr)
-import Control.Exception (SomeException, try)
 import Control.Kernmantle.Caching (localStoreWithId)
 import Control.Kernmantle.Rope
   ( HasKleisliIO,
@@ -37,7 +36,7 @@ import Control.Monad.Except (runExceptT)
 import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent))
 import qualified Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as RC
-import Data.Either (isLeft, rights)
+import Data.Either (isLeft)
 import qualified Data.Map.Lazy as Map
 import Data.String (IsString (fromString))
 import qualified Data.Text as T
@@ -59,6 +58,7 @@ import Path.IO (copyDirRecur)
 import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, removeDirectory, renamePath)
 import System.Info (os)
 import System.PosixCompat.User (getEffectiveGroupID, getEffectiveUserID)
+import Data.Maybe (catMaybes)
 
 -- * Flow execution
 
@@ -177,7 +177,8 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
             case runDockerResult of
               Left err -> error $ show err
               Right containerId ->
-                let handleError hash = error $ "Could not put in store item " ++ show hash
+                let -- Define behaviors to pass to @CS.putInStore@
+                    handleError hash = error $ "Could not put in store item " ++ show hash
                     copyDockerContainer itemPath _ =
                       do
                         copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultContainerWorkingDirPath (toFilePath itemPath) containerId
@@ -188,20 +189,34 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
                             -- In order to improve the user experience, funflow moves the content of said directory to the level of the CAS item directory
 
                             -- Path to the folder extracted by `docker cp`
-                            itemWorkdirPath <- (itemPath </>) <$> (parseRelDir defaultWorkingDirName)
+                            itemWorkdir <- (itemPath </>) <$> (parseRelDir defaultWorkingDirName)
                             -- List of directories/files inside
                             itemWorkdirDirPaths <-
-                              filterM (doesDirectoryExist . toFilePath)
-                                =<< fmap rights . mapM (try @SomeException . fmap (itemWorkdirPath </>) . parseRelDir)
-                                =<< (listDirectory $ toFilePath itemWorkdirPath)
+                                -- Get the list of children elements of @itemWorkdir@
+                                (listDirectory $ toFilePath itemWorkdir)
+                                >>= -- Tries to parse the elements given by @listDirectory@ to relative directory paths 
+                                    -- and keep only successful entries
+                                    pure . catMaybes . map (parseRelDir @Maybe)
+                                >>= -- turn into absolute paths
+                                    pure . map (itemWorkdir </>)
+                                >>= -- keep only directories that exists
+                                    -- this also ensures that this list comprises directories only, see doc of @doesDirectoryExist@
+                                    filterM (doesDirectoryExist . toFilePath)
                             itemWorkdirFilePaths <-
-                              filterM (doesFileExist . toFilePath)
-                                =<< fmap rights . mapM (try @SomeException . fmap (itemWorkdirPath </>) . parseRelFile)
-                                =<< (listDirectory $ toFilePath itemWorkdirPath)
+                                -- Get the list of children elements of @itemWorkdir@
+                                (listDirectory $ toFilePath itemWorkdir)
+                                >>= -- Tries to parse the elements given by @listDirectory@ to relative directory paths 
+                                    -- and keep only successful entries
+                                    pure . catMaybes . map (parseRelFile @Maybe)
+                                >>= -- turn into absolute paths
+                                    pure . map (itemWorkdir </>)
+                                >>= -- keep only directories that exists
+                                    -- this also ensures that this list comprises files only, see doc of @doesFileExist@
+                                    filterM (doesFileExist . toFilePath)
                             -- Move directories/files
                             mapM_ (uncurry renamePath) [(toFilePath dir, toFilePath $ (parent . parent) dir </> dirname dir) | dir <- itemWorkdirDirPaths]
                             mapM_ (uncurry renamePath) [(toFilePath file, toFilePath $ (parent . parent) file </> filename file) | file <- itemWorkdirFilePaths]
                             -- After moving files and directories to item directory, remove the directory named after the working directory
-                            removeDirectory $ toFilePath itemWorkdirPath
+                            removeDirectory $ toFilePath itemWorkdir
                             return ()
                  in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, containerId, runDockerResult)
