@@ -31,7 +31,6 @@ import Control.Kernmantle.Rope
     weave',
     (&),
   )
-import Control.Monad (filterM)
 import Control.Monad.Except (runExceptT)
 import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent))
 import qualified Data.CAS.ContentStore as CS
@@ -53,12 +52,12 @@ import Funflow.Tasks.Docker
 import qualified Funflow.Tasks.Docker as DE
 import Funflow.Tasks.Simple (SimpleTask (IOTask, PureTask))
 import Funflow.Tasks.Store (StoreTask (GetDir, PutDir))
-import Path (Abs, Dir, Path, absdir, dirname, filename, parent, parseRelDir, parseRelFile, toFilePath, (</>))
+import Path (Abs, Dir, Path, absdir, parseRelDir, toFilePath, (</>))
 import Path.IO (copyDirRecur)
-import System.Directory (doesDirectoryExist, doesFileExist, listDirectory, removeDirectory, renamePath)
+import System.Directory (removeDirectory)
+import System.Directory.Funflow (moveDirectoryContent)
 import System.Info (os)
 import System.PosixCompat.User (getEffectiveGroupID, getEffectiveUserID)
-import Data.Maybe (catMaybes)
 
 -- * Flow execution
 
@@ -162,61 +161,36 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
             manager <- newDefaultDockerManager (OS os)
             uid <- getEffectiveUserID
             gid <- getEffectiveGroupID
-            let defaultWorkingDirName = "workdir"
+            let -- @defaultWorkingDirName@ has been chosen arbitrarly, it is both where Docker container will execute things, but also the exported folder to the content store
+                defaultWorkingDirName = "workdir"
                 defaultContainerWorkingDirPath = "/" ++ defaultWorkingDirName
                 container =
                   (defaultContainerSpec image)
                     { workingDir = T.pack defaultContainerWorkingDirPath,
                       cmd = [command] <> argsFilledChecked,
-                      hostVolumes = map fromString [(toFilePath $ CS.itemPath store item) <> ":" <> (toFilePath mount) | VolumeBinding {DE.item, DE.mount} <- inputBindings]
+                      -- ":ro" suffix on docker binding means "read-only", the mounted volumes from the content store will not be modified
+                      hostVolumes = map fromString [(toFilePath $ CS.itemPath store item) <> ":" <> (toFilePath mount) <> ":ro" | VolumeBinding {DE.item, DE.mount} <- inputBindings]
                     }
+            -- Run the docker container
             runDockerResult <- runExceptT $ do
               containerId <- runContainer manager container
               awaitContainer manager containerId
               return containerId
+            -- Process the result of the docker computation
             case runDockerResult of
               Left err -> error $ show err
               Right containerId ->
                 let -- Define behaviors to pass to @CS.putInStore@
                     handleError hash = error $ "Could not put in store item " ++ show hash
-                    copyDockerContainer itemPath _ =
-                      do
-                        copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultContainerWorkingDirPath (toFilePath itemPath) containerId
-                        case copyResult of
-                          Left ex -> error $ show ex
-                          Right _ -> do
-                            -- Since docker will extract a TAR file of the container content, it creates a directory named after the requested directory's name
-                            -- In order to improve the user experience, funflow moves the content of said directory to the level of the CAS item directory
-
-                            -- Path to the folder extracted by `docker cp`
-                            itemWorkdir <- (itemPath </>) <$> (parseRelDir defaultWorkingDirName)
-                            -- List of directories/files inside
-                            itemWorkdirDirPaths <-
-                                -- Get the list of children elements of @itemWorkdir@
-                                (listDirectory $ toFilePath itemWorkdir)
-                                >>= -- Tries to parse the elements given by @listDirectory@ to relative directory paths 
-                                    -- and keep only successful entries
-                                    pure . catMaybes . map (parseRelDir @Maybe)
-                                >>= -- turn into absolute paths
-                                    pure . map (itemWorkdir </>)
-                                >>= -- keep only directories that exists
-                                    -- this also ensures that this list comprises directories only, see doc of @doesDirectoryExist@
-                                    filterM (doesDirectoryExist . toFilePath)
-                            itemWorkdirFilePaths <-
-                                -- Get the list of children elements of @itemWorkdir@
-                                (listDirectory $ toFilePath itemWorkdir)
-                                >>= -- Tries to parse the elements given by @listDirectory@ to relative directory paths 
-                                    -- and keep only successful entries
-                                    pure . catMaybes . map (parseRelFile @Maybe)
-                                >>= -- turn into absolute paths
-                                    pure . map (itemWorkdir </>)
-                                >>= -- keep only directories that exists
-                                    -- this also ensures that this list comprises files only, see doc of @doesFileExist@
-                                    filterM (doesFileExist . toFilePath)
-                            -- Move directories/files
-                            mapM_ (uncurry renamePath) [(toFilePath dir, toFilePath $ (parent . parent) dir </> dirname dir) | dir <- itemWorkdirDirPaths]
-                            mapM_ (uncurry renamePath) [(toFilePath file, toFilePath $ (parent . parent) file </> filename file) | file <- itemWorkdirFilePaths]
-                            -- After moving files and directories to item directory, remove the directory named after the working directory
-                            removeDirectory $ toFilePath itemWorkdir
-                            return ()
+                    copyDockerContainer itemPath _ = do
+                      copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultContainerWorkingDirPath (toFilePath itemPath) containerId
+                      case copyResult of
+                        Left ex -> error $ show ex
+                        Right _ -> do
+                          -- Since docker will extract a TAR file of the container content, it creates a directory named after the requested directory's name
+                          -- In order to improve the user experience, funflow moves the content of said directory to the level of the CAS item directory
+                          itemWorkdir <- (itemPath </>) <$> (parseRelDir defaultWorkingDirName)
+                          moveDirectoryContent itemWorkdir itemPath
+                          -- After moving files and directories to item directory, remove the directory named after the working directory
+                          removeDirectory $ toFilePath itemWorkdir
                  in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, containerId, runDockerResult)
