@@ -6,6 +6,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
+import Control.Exception (SomeException)
 import qualified Data.CAS.ContentStore as CS
 import Funflow
   ( Flow,
@@ -17,6 +18,7 @@ import Funflow
     pureFlow,
     putDir,
     runFlowWithConfig,
+    tryE,
   )
 import Funflow.Tasks.Docker (DockerTaskConfig (DockerTaskConfig), DockerTaskInput (DockerTaskInput), VolumeBinding (VolumeBinding))
 import qualified Funflow.Tasks.Docker as DE
@@ -38,6 +40,8 @@ main = do
   testFlow @() @CS.Item "a flow running a task in docker" someDockerFlow ()
   putStr "\n---------------------\n"
   testFlow @() @CS.Item "a flow running a task in docker, using the output of one as input of another" someDockerFlowWithInputs ()
+  putStr "\n---------------------\n"
+  testFlow @() @() "a flow running a task in docker which fails, but error is caught by the pipeline" someDockerFlowThatFails ()
   putStr "\n------  DONE   ------\n"
 
 testFlow :: forall i o. (Show i, Show o) => String -> Flow i o -> i -> IO ()
@@ -83,3 +87,12 @@ someDockerFlowWithInputs :: Flow () CS.Item
 someDockerFlowWithInputs = proc () -> do
   item <- dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["-c", "with open('test.py', 'w') as f: f.write('print(\\'Hello world\\')')"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
   dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["/script/test.py"]}) -< DockerTaskInput {DE.inputBindings = [VolumeBinding {DE.item = item, DE.mount = [absdir|/script/|]}], DE.argsVals = mempty}
+
+someDockerFlowThatFails :: Flow () ()
+someDockerFlowThatFails =
+  let someFailingDockerFlow = dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "badCommand", DE.args = []})
+   in proc () -> do
+        result <- tryE @SomeException someFailingDockerFlow -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
+        case result of
+          Left _ -> ioFlow $ const $ putStrLn "Exception caught" -< ()
+          Right _ -> ioFlow $ const $ error "Exception not caught" -< ()
