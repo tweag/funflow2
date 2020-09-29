@@ -124,7 +124,7 @@ interpretStoreTask store storeTask = case storeTask of
           -- this will give a hash through `ContentHashable` that takes into account the content of the directory
           directoryContent = DirectoryContent dirPath
           -- Handle errors
-          handleError hash = error $ "Could not put directory " <> show dirPath <> " in store item " <> show hash
+          handleError hash = throwString $ "Could not put directory " <> show dirPath <> " in store item " <> show hash
           -- Copy recursively a directory from a DirectoryContent type
           copy :: Path Abs Dir -> DirectoryContent -> IO ()
           copy destinationPath (DirectoryContent sourcePath) = copyDirRecur sourcePath destinationPath
@@ -179,14 +179,14 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
               return containerId
             -- Process the result of the docker computation
             case runDockerResult of
-              Left err -> error $ show err
+              Left err -> throwString $ show err
               Right containerId ->
                 let -- Define behaviors to pass to @CS.putInStore@
-                    handleError hash = error $ "Could not put in store item " ++ show hash
+                    handleError hash = throwString $ "Could not put in store item " ++ show hash
                     copyDockerContainer itemPath _ = do
                       copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultContainerWorkingDirPath (toFilePath itemPath) containerId
                       case copyResult of
-                        Left ex -> error $ show ex
+                        Left ex -> throwString $ show ex
                         Right _ -> do
                           -- Since docker will extract a TAR file of the container content, it creates a directory named after the requested directory's name
                           -- In order to improve the user experience, funflow moves the content of said directory to the level of the CAS item directory
