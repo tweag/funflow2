@@ -21,7 +21,7 @@ module Funflow.Run
 where
 
 import Control.Arrow (Arrow, arr)
-import Control.Exception.Safe (throwString)
+import Control.Exception.Safe (throw, throwString)
 import Control.Kernmantle.Caching (localStoreWithId)
 import Control.Kernmantle.Rope
   ( HasKleisliIO,
@@ -179,14 +179,14 @@ interpretDockerTask store (DockerTask (DockerTaskConfig {DE.image, DE.command, D
               return containerId
             -- Process the result of the docker computation
             case runDockerResult of
-              Left err -> throwString $ show err
+              Left ex -> throw ex
               Right containerId ->
                 let -- Define behaviors to pass to @CS.putInStore@
                     handleError hash = throwString $ "Could not put in store item " ++ show hash
                     copyDockerContainer itemPath _ = do
                       copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultContainerWorkingDirPath (toFilePath itemPath) containerId
                       case copyResult of
-                        Left ex -> throwString $ show ex
+                        Left ex -> throw ex
                         Right _ -> do
                           -- Since docker will extract a TAR file of the container content, it creates a directory named after the requested directory's name
                           -- In order to improve the user experience, funflow moves the content of said directory to the level of the CAS item directory

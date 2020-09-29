@@ -23,12 +23,13 @@ module Funflow.Flow
 where
 
 import Control.Arrow (Arrow, ArrowChoice)
-import Control.Exception.Safe (SomeException)
+import Control.Exception.Safe (SomeException, StringException)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Error (ThrowEffect, TryEffect)
 import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, strand)
 import Control.Monad.IO.Class (MonadIO)
 import Data.CAS.ContentStore as CS
+import Docker.API.Client (DockerClientError)
 import Funflow.Tasks.Docker (DockerTask (DockerTask), DockerTaskConfig, DockerTaskInput)
 import Funflow.Tasks.Simple (SimpleTask (IOTask, PureTask))
 import Funflow.Tasks.Store (StoreTask (GetDir, PutDir))
@@ -48,8 +49,13 @@ type RequiredCoreTasks m =
   '[ -- Basic requirement
      Arrow,
      ArrowChoice,
+     -- Error handling
      ThrowEffect SomeException,
      TryEffect SomeException,
+     ThrowEffect StringException,
+     TryEffect StringException,
+     ThrowEffect DockerClientError,
+     TryEffect DockerClientError,
      -- Support IO
      HasKleisli m,
      -- Support caching

@@ -6,8 +6,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-import Control.Exception (SomeException)
+import Control.Exception.Safe (SomeException)
 import qualified Data.CAS.ContentStore as CS
+import Docker.API.Client (DockerClientError (ContainerCreationFailedError))
 import Funflow
   ( Flow,
     RunFlowConfig (..),
@@ -91,8 +92,14 @@ someDockerFlowWithInputs = proc () -> do
 someDockerFlowThatFails :: Flow () ()
 someDockerFlowThatFails =
   let someFailingDockerFlow = dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "badCommand", DE.args = []})
+      -- A helper function for the test
+      isContainerCreationFailedError (ContainerCreationFailedError _) = True
+      isContainerCreationFailedError _ = False
    in proc () -> do
-        result <- tryE @SomeException someFailingDockerFlow -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
+        result <- tryE @DockerClientError someFailingDockerFlow -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
         case result of
-          Left _ -> ioFlow $ const $ putStrLn "Exception caught" -< ()
-          Right _ -> ioFlow $ const $ error "Exception not caught" -< ()
+          Left ex ->
+            if isContainerCreationFailedError ex
+              then ioFlow (\ex -> putStrLn $ "Exception caught: " ++ show ex) -< ex
+              else ioFlow $ const $ error "Wrong exception caught!" -< ()
+          Right _ -> ioFlow $ const $ error "Exception not caught!" -< ()
