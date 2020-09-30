@@ -16,6 +16,7 @@
       };
     in
     {
+      projectHaskellPackages = project;
       # TODO - Remove docker buildInput here since it is only needed by the docker-client
       funflow = project.funflow.components.library.overrideAttrs (old:
         { buildInputs = old.buildInputs ++ [ super.docker ]; }
@@ -26,6 +27,9 @@
       # Note: Writing these components out explicitly incase we add docker or other examples
       # which require an extra buildInput, which can be done by calling overrideAttrs
       # on any of the following:
+
+      project.
+
       funflow-tutorial = {
         quick-reference = project.funflow-tutorial.components.exes.quick-reference;
         tutorial1 = project.funflow-tutorial.components.exes.tutorial1;
@@ -53,7 +57,26 @@
       );
     }
   )
-  
+
+  # Need to manually override some stuff in ihaskell to since we are building it via haskell.nix
+  # and not via the usual nixpkgs infrastructure. This is mostly stolen from
+  # the iHaskell repo: https://github.com/gibiansky/IHaskell/blob/master/release.nix#L36
+  (self: super:
+    { projectHaskellPackages = super.lib.recursiveUpdate super.projectHaskellPackages
+      {
+        ihaskell.components.tests.hspec = super.projectHaskellPackages.ihaskell.components.tests.hspec.overrideAttrs
+          (old:
+            { 
+              preCheck = ''
+                export HOME=$TMPDIR/home
+                export PATH=$PWD/dist/build/ihaskell:$PATH
+                export GHC_PACKAGE_PATH=$PWD/dist/package.conf.inplace/:$GHC_PACKAGE_PATH
+              '';
+            }
+          );
+      };
+    }
+  )
   # Wrapper script for building tutorial html docs
   (self: super:
     { generate-funflow-tutorials = super.callPackage ./pkgs/tutorials.nix { }; }

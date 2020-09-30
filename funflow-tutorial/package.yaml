@@ -12,6 +12,7 @@ dependencies:
   - base >= 4.9 && < 5
   - funflow
   - inliterate
+  - ihaskell
 library:
   source-dirs: lib
 
