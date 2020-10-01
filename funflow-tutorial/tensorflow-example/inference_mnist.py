@@ -13,8 +13,7 @@ logging.basicConfig()
 tf.random.set_seed(42)
 
 # Image files and their correct labels
-IMAGE_DIR = "demo-images"
-IMAGES = {"test-digit-1.png": 1, "test-digit-2.png": 2, "test-digit-9.png": 9}
+IMAGES = {"test-digit-1.png": 1, "test-digit-2.png": 2, "test-digit-3.png": 3}
 
 
 def normalize_img(image: tf.Tensor) -> tf.Tensor:
@@ -37,11 +36,11 @@ def load_image(image_path: str) -> tf.Tensor:
     return tf.expand_dims(normed, 0)
 
 
-def load_all_images(images: dict) -> Tuple[tf.Tensor, List]:
+def load_all_images(res_dir: str, images: dict) -> Tuple[tf.Tensor, List]:
     tensors = []
     labels = []
     for img, label in images.items():
-        tensors.append(load_image(os.path.join(IMAGE_DIR, img)))
+        tensors.append(load_image(os.path.join(res_dir, img)))
         labels.append(label)
     return tf.concat(tensors, axis=0), labels
 
@@ -61,10 +60,10 @@ def plot_predictions(
     plt.savefig(out_path)
 
 
-def main(model_path: str, out_path: str) -> None:
+def main(model_path: str, res_path: str, out_path: str) -> None:
     logging.info(f"Loading saved model {model_path}")
     model = tf.keras.models.load_model(model_path)
-    images, _ = load_all_images(IMAGES)
+    images, _ = load_all_images(res_path, IMAGES)
     logging.info("Running inferencing")
     predictions = np.argmax(model.predict(images), axis=-1)
     plot_predictions(images, predictions, out_path)
@@ -75,6 +74,7 @@ if __name__ == "__main__":
         "Loads a serialized keras model from disk and runs inferencing on a pre-defined set of images"
     )
     parser.add_argument("model_dir", help="The model directory to load")
+    parser.add_argument("res_dir", help="The directory containing validation images")
     parser.add_argument("out_file", help="Output summary file path")
     args = parser.parse_args()
-    main(args.model_dir, args.out_file)
+    main(args.model_dir, args.res_dir, args.out_file)

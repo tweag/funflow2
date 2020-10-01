@@ -49,11 +49,18 @@ def normalize_img(image, label):
 
 def create_model() -> tf.keras.Model:
     logging.info("Initializing model")
+    # Just using a simple CNN for this example
     model = tf.keras.models.Sequential(
         [
-            tf.keras.layers.Flatten(input_shape=(28, 28, 1)),
+            tf.keras.layers.Conv2D(32, (3, 3), activation='relu', kernel_initializer="he_uniform", input_shape=(28, 28, 1)),
+            tf.keras.layers.MaxPooling2D((2, 2)),
+            tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer="he_uniform"),
+            tf.keras.layers.Conv2D(64, (3, 3), activation='relu', kernel_initializer="he_uniform"),
+            tf.keras.layers.MaxPooling2D((2, 2)),
+            tf.keras.layers.Dropout(0.5),
+            tf.keras.layers.Flatten(),
             tf.keras.layers.Dense(
-                64, activation="relu", kernel_regularizer=regularizers.l2(0.001)
+                100, activation="relu", kernel_regularizer=regularizers.l2(0.02)
             ),
             tf.keras.layers.Dense(10, activation="softmax"),
         ]
@@ -65,8 +72,32 @@ def create_model() -> tf.keras.Model:
     )
     return model
 
+# def create_model() -> tf.keras.Model:
+#     logging.info("Initializing model")
+#     model = tf.keras.models.Sequential(
+#         [
+#             tf.keras.layers.Flatten(input_shape=(28, 28, 1)),
+#             tf.keras.layers.Dense(
+#                 16, activation="relu", kernel_regularizer=regularizers.l2(0.02)
+#             ),
+#             tf.keras.layers.Dense(
+#                 16, activation="relu", kernel_regularizer=regularizers.l1(0.01)
+#             ),
+#             tf.keras.layers.Dense(
+#                 16, activation="relu", kernel_regularizer=regularizers.l1(0.01)
+#             ),
+#             tf.keras.layers.Dense(10, activation="softmax"),
+#         ]
+#     )
+#     model.compile(
+#         loss="sparse_categorical_crossentropy",
+#         optimizer=tf.keras.optimizers.Adam(0.001),
+#         metrics=["accuracy"],
+#     )
+#     return model
 
-def main(save_path: str, epochs: int = 15) -> None:
+
+def main(save_path: str, epochs: int) -> None:
     test, train = load_mnist()
     model = create_model()
     model.fit(train, validation_data=test, epochs=epochs)
@@ -81,5 +112,6 @@ if __name__ == "__main__":
         "Trains an MNIST digit recognition model and saves it to the specified path"
     )
     parser.add_argument("model_dir", help="The path at which to save the model")
+    parser.add_argument("--n_epochs", required=False, default=25, type=int)
     args = parser.parse_args()
-    main(args.model_dir)
+    main(args.model_dir, args.n_epochs)
