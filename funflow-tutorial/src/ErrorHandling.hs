@@ -13,7 +13,7 @@ This tutorial will use the following language extensions:
 
 ```haskell top
 {-# LANGUAGE Arrows #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
 ```
 
@@ -24,10 +24,9 @@ import Lib
 and imports:
 
 ```haskell top
-import Control.Arrow (returnA)
 import Control.Exception.Safe (SomeException)
 import qualified Data.CAS.ContentStore as CS
-import Funflow
+import Funflow (Flow, pureFlow, ioFlow, dockerFlow, throwStringFlow, returnFlow, tryE)
 import Funflow.Tasks.Docker (DockerTaskConfig (DockerTaskConfig), DockerTaskInput (DockerTaskInput), args, argsVals, command, image, inputBindings, Arg(Placeholder))
 ```
 
@@ -57,12 +56,13 @@ This means that the result of the flow is either the exception on the left or th
 ```haskell top
 flow :: Flow () String
 flow = proc () -> do
-  (result :: Either SomeException CS.Item) <- tryE someFlowThatFails -< DockerTaskInput {inputBindings = mempty, argsVals = mempty}
+  -- Try to run a flow that fails, receive the result in an @Either SomeException ()@
+  result <- tryE @SomeException someFlowThatFails -< DockerTaskInput {inputBindings = mempty, argsVals = mempty}
   case result of
     Left _ ->
-      returnA -< "The task failed"
+      returnFlow -< "The task failed"
     Right _ ->
-      returnA -< "The task succeeded"
+      returnFlow -< "The task succeeded"
 ```
 
 In this example, we run the docker task, but we wrap it with the `tryE` function in order to receive the exception if any is thrown.
@@ -71,3 +71,36 @@ We could for instance log the exception to a file or realise cleaning operations
 
 Note that we had to specify which type of exception we were excepting to have when writing `(result :: Either SomeException CS.Item)`.
 This requires the `ScopedTypeVariables` extension.
+
+## Throwing exceptions in a workflow
+
+The implementation of tasks will most often throw an exception whenever something has failed.
+However, sometimes, based on the result of a computation, you want to decide that a task has failed.
+
+In funflow, it is possible for you to throw an exception manually, using `throwStringFlow`:
+
+```haskell top
+flowThatFails :: Flow () ()
+flowThatFails = proc () -> do
+  -- Do some computations first (this is a dummy example)
+  result <- pureFlow id -< ()
+  -- Depending on the result, throw an exception
+  if result == ()
+    then throwStringFlow -< "Nothing has been done (as expected for this example)"
+    else returnFlow -< ()
+```
+
+you can then handle the failure as previously demonstrated:
+
+```haskell top
+flow' :: Flow () ()
+flow' = proc () -> do
+  -- Try to run a flow that fails, receive the result in an @Either SomeException ()@
+  result <- tryE @SomeException flowThatFails -< ()
+  -- Handle result as previously shown
+  case result of
+    Left exception ->
+      (ioFlow $ \exception -> putStrLn $ "Exception caught: " ++ show exception) -< exception
+    Right () ->
+      ioFlow $ const $ error "Exception not caught" -< ()
+```

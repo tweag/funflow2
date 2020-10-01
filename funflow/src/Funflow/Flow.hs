@@ -17,13 +17,15 @@ module Funflow.Flow
     pureFlow,
     ioFlow,
     dockerFlow,
-    putDir,
-    getDir,
+    putDirFlow,
+    getDirFlow,
+    throwStringFlow,
+    returnFlow,
   )
 where
 
-import Control.Arrow (Arrow, ArrowChoice)
-import Control.Exception.Safe (SomeException, StringException)
+import Control.Arrow (Arrow, ArrowChoice, returnA)
+import Control.Exception.Safe (SomeException, StringException, throwString)
 import Control.Kernmantle.Caching (ProvidesCaching)
 import Control.Kernmantle.Error (ThrowEffect, TryEffect)
 import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, strand)
@@ -86,23 +88,36 @@ class IsFlow binEff where
 instance IsFlow SimpleTask where
   toFlow = strand #simple
 
+-- | Make a flow from a pure function
+pureFlow :: (i -> o) -> Flow i o
+pureFlow = toFlow . PureTask
+
+-- | Make a flow from an IO monad
+ioFlow :: (i -> IO o) -> Flow i o
+ioFlow = toFlow . IOTask
+
 instance IsFlow DockerTask where
   toFlow = strand #docker
+
+-- | Make a flow from the configuration of a Docker task
+dockerFlow :: DockerTaskConfig -> Flow DockerTaskInput CS.Item
+dockerFlow = toFlow . DockerTask
 
 instance IsFlow StoreTask where
   toFlow = strand #store
 
-pureFlow :: (i -> o) -> Flow i o
-pureFlow = toFlow . PureTask
+-- | Make a flow to put a directory into the content store
+putDirFlow :: Flow (Path Abs Dir) CS.Item
+putDirFlow = toFlow PutDir
 
-ioFlow :: (i -> IO o) -> Flow i o
-ioFlow = toFlow . IOTask
+-- | Make a flow to get the absolute path of the directory storing the data of an item in the content store
+getDirFlow :: Flow (CS.Item) (Path Abs Dir)
+getDirFlow = toFlow GetDir
 
-dockerFlow :: DockerTaskConfig -> Flow DockerTaskInput CS.Item
-dockerFlow = toFlow . DockerTask
+-- | Make a flow that throws an exception with a message
+throwStringFlow :: Flow String ()
+throwStringFlow = ioFlow $ \message -> throwString message
 
-putDir :: Flow (Path Abs Dir) CS.Item
-putDir = toFlow PutDir
-
-getDir :: Flow (CS.Item) (Path Abs Dir)
-getDir = toFlow GetDir
+-- | Return a result at the end of a flow
+returnFlow :: Flow a a
+returnFlow = returnA
