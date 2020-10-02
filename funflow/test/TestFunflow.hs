@@ -14,10 +14,10 @@ import Funflow
     RunFlowConfig (..),
     caching,
     dockerFlow,
-    getDir,
+    getDirFlow,
     ioFlow,
     pureFlow,
-    putDir,
+    putDirFlow,
     runFlowWithConfig,
     tryE,
   )
@@ -76,8 +76,8 @@ someStoreFlow = proc () -> do
   --   which is the case in the CI
   testDir <- ioFlow (\() -> return . flip (</>) [reldir|./test/assets/storeFlowTest/|] =<< parseAbsDir =<< getCurrentDirectory) -< ()
   -- The actual test
-  item <- putDir -< testDir
-  path <- getDir -< item
+  item <- putDirFlow -< testDir
+  path <- getDirFlow -< item
   ioFlow $ (\(item, itemDirPath) -> putStrLn $ "Copied directory to item " <> show item <> " with path " <> show itemDirPath) -< (item, path)
 
 someDockerFlow :: Flow () CS.Item
