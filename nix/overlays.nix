@@ -24,19 +24,7 @@
       funflow-tests = project.funflow.components.tests.test-funflow.overrideAttrs (old:
         { buildInputs = old.buildInputs ++ [ super.docker ]; }
       );
-      # Note: Writing these components out explicitly incase we add docker or other examples
-      # which require an extra buildInput, which can be done by calling overrideAttrs
-      # on any of the following:
-
-      project.
-
-      funflow-tutorial = {
-        quick-reference = project.funflow-tutorial.components.exes.quick-reference;
-        tutorial1 = project.funflow-tutorial.components.exes.tutorial1;
-        tutorial2 = project.funflow-tutorial.components.exes.tutorial2;
-        wordcount = project.funflow-tutorial.components.exes.wordcount;
-      };
-
+    
       # Shell with funflow's dependencies
       funflow-shell = project.shellFor ({
         exactDeps = true;
@@ -77,6 +65,22 @@
       };
     }
   )
+  # jupyterWith
+  (self: super:
+    let 
+    in 
+      { jupyterWith = import (builtins.fetchGit {
+          url = https://github.com/tweag/jupyterWith;
+          rev = "35eb565c6d00f3c61ef5e74e7e41870cfa3926f7";
+      }) {};
+    }
+  )
+
+  # Overlay for the tutorial jupyter lab environment
+  (self: super:
+    { funflow-tutorial-jupyter = super.callPackage ./pkgs/jupyter.nix { }; }
+  )
+
   # Wrapper script for building tutorial html docs
   (self: super:
     { generate-funflow-tutorials = super.callPackage ./pkgs/tutorials.nix { }; }
