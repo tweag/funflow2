@@ -67,8 +67,6 @@
   )
   # jupyterWith
   (self: super:
-    let 
-    in 
       { jupyterWith = import (builtins.fetchGit {
           url = https://github.com/tweag/jupyterWith;
           rev = "35eb565c6d00f3c61ef5e74e7e41870cfa3926f7";
