@@ -10,6 +10,8 @@ tutorialHaskellDependencies = p: with p; [
     regex-posix
     text
     containers
+    JuicyPixels
+    ihaskell-juicypixels
 ];
 
 iHaskell = jupyterWith.kernels.iHaskellWith {

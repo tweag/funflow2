@@ -30,9 +30,10 @@ let
     1. Tutorials
         1. [Getting Started](./tutorial/Tutorial1.html)
         2. [WordCount](./tutorial/WordCount.html)
-        3. [Quick Reference](./tutorial/QuickReference.html)
-        4. [Advanced Tutorial](./tutorial/Tutorial2.html)
-
+        3. [ML Pipeline with Docker and TensorFlow](./tutorial/TensorflowDocker.html)
+        4. [Quick Reference](./tutorial/QuickReference.html)
+        5. [Advanced Tutorial](./tutorial/Tutorial2.html)
+        
     2. [API Docs](./doc/index.html)
   '';
 in runCommand "generate-doc-index" {

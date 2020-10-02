@@ -72,30 +72,6 @@ def create_model() -> tf.keras.Model:
     )
     return model
 
-# def create_model() -> tf.keras.Model:
-#     logging.info("Initializing model")
-#     model = tf.keras.models.Sequential(
-#         [
-#             tf.keras.layers.Flatten(input_shape=(28, 28, 1)),
-#             tf.keras.layers.Dense(
-#                 16, activation="relu", kernel_regularizer=regularizers.l2(0.02)
-#             ),
-#             tf.keras.layers.Dense(
-#                 16, activation="relu", kernel_regularizer=regularizers.l1(0.01)
-#             ),
-#             tf.keras.layers.Dense(
-#                 16, activation="relu", kernel_regularizer=regularizers.l1(0.01)
-#             ),
-#             tf.keras.layers.Dense(10, activation="softmax"),
-#         ]
-#     )
-#     model.compile(
-#         loss="sparse_categorical_crossentropy",
-#         optimizer=tf.keras.optimizers.Adam(0.001),
-#         metrics=["accuracy"],
-#     )
-#     return model
-
 
 def main(save_path: str, epochs: int) -> None:
     test, train = load_mnist()
