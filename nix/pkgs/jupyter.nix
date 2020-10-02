@@ -1,6 +1,7 @@
 {symlinkJoin,
 jupyterWith,
-projectHaskellPackages
+projectHaskellPackages,
+docker
 }:
 
 let 
@@ -30,4 +31,5 @@ iHaskell = jupyterWith.kernels.iHaskellWith {
 
 in jupyterWith.jupyterlabWith {
     kernels = [ iHaskell ];
+    extraPackages = p: with p; [docker];
 }
