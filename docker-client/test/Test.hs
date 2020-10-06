@@ -233,7 +233,6 @@ dockerIntegrationTests managerIO =
         assertBool msg success
     ]
 
---  images = ["python", "python:latest", "python:3.7", "python:latest@sha256:12345", "python@sha256:12345"]
 unitTests :: TestTree
 unitTests =
   testGroup
