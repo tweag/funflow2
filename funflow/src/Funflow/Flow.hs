@@ -10,8 +10,10 @@
 
 module Funflow.Flow
   ( Flow,
+    ExtendedFlow,
     RequiredStrands,
-    RequiredCoreTasks,
+    RequiredCore,
+    IsFlow,
     toFlow,
     pureFlow,
     ioFlow,
@@ -30,6 +32,7 @@ import Funflow.Tasks.Docker (DockerTask (DockerTask), DockerTaskConfig, DockerTa
 import Funflow.Tasks.Simple (SimpleTask (IOTask, PureTask))
 import Funflow.Tasks.Store (StoreTask (GetDir, PutDir))
 import Path (Abs, Dir, Path)
+import Funflow.Type.Family.List (type (++))
 
 -- | The constraints on the set of "strands"
 --   These will be "interpreted" into "core tasks" (which have contraints defined below).
@@ -41,7 +44,7 @@ type RequiredStrands =
 
 -- | The class constraints on the "core task".
 --   The "core task" is the task used to run any kind of "binary task" ("strand")
-type RequiredCoreTasks m =
+type RequiredCore m =
   '[ -- Basic requirement
      Arrow,
      ArrowChoice,
@@ -54,18 +57,19 @@ type RequiredCoreTasks m =
 -- | Flow is the main type of Funflow.
 --   It is a task that takes an input value of type `input` and produces an output value of type `output`.
 --   It can use any named task (strand) that is defined in @RequiredStrands@.
-type Flow input output =
+type Flow input output = ExtendedFlow '[] input output
+
+type ExtendedFlow additionalStrands input output =
   forall m.
   (MonadIO m) =>
   AnyRopeWith
-    RequiredStrands
-    (RequiredCoreTasks m)
+    (additionalStrands ++ RequiredStrands)
+    (RequiredCore m)
     input
     output
 
-
 -- ** Smart constructors
---
+
 -- Directly make a flow using @IsFlow@'s @toFlow@
 
 -- | Allows to register on which strand a binary task should be
