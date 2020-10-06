@@ -88,7 +88,7 @@ formatLineCountMessage actual expected = "Number of lines in output log file was
 dockerIntegrationTests :: IO Manager -> TestTree
 dockerIntegrationTests managerIO =
   testGroup
-    "Docker integration tests"
+    "docker integration tests"
     [ testCase "Pull a test image" $ do
         manager <- managerIO
         result <- runExceptT $ pullImage manager testImage
@@ -236,7 +236,7 @@ dockerIntegrationTests managerIO =
 unitTests :: TestTree
 unitTests =
   testGroup
-    "Unit"
+    "unit"
     [ testCase "tagImageIfMissing - name only" $
         tagImageIfMissing "python/python" @?= "python/python:latest",
       testCase "tagImageIfMissing - with existing latest tag" $
