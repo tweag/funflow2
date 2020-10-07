@@ -15,19 +15,9 @@ module Docker.API.Client
     ContainerLogType (..),
     pullImage,
     awaitContainer,
-    tagImageIfMissing,
-    updateImageDigest,
-    updateImageName,
-    updateImageTag,
   )
 where
 
-import Docker.API.Client.Images
-  ( tagImageIfMissing,
-    updateImageDigest,
-    updateImageName,
-    updateImageTag,
-  )
 import Docker.API.Client.Internal.Connection
   ( defaultDockerUnixSocket,
     newDefaultDockerManager,
