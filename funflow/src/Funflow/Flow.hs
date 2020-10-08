@@ -59,6 +59,9 @@ type RequiredCore m =
 --   It can use any named task (strand) that is defined in @RequiredStrands@.
 type Flow input output = ExtendedFlow '[] input output
 
+-- | Allows to add other strands on top of the existing strands used by funflow's @Flow@ defined by @RequiredStrands@.
+--   Thoses additional strands should be weaved before passing the resulting loose rope to runFlow.
+--   See the advanced tutorial on extending funflow's @Flow@.
 type ExtendedFlow additionalStrands input output =
   forall m.
   (MonadIO m) =>
