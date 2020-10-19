@@ -82,10 +82,10 @@
   # Documentation
   (self: super:
     {
-      # Index page
-      doc-index = super.callPackage ./pkgs/doc-index.nix { };
+      # API documentation
       api-docs = 
         let
+          # List of packages to generate doc of
           doc-libs = with self; [
             funflow
             funflow-tests
@@ -97,10 +97,9 @@
           ];
         in
           self.haddock-combine { hspkgs = doc-libs; };
+
       # Script for building tutorial html docs
       generate-funflow-tutorials = super.callPackage ./pkgs/tutorials.nix { nbconvert=self.python3Packages.nbconvert; };
-      # Combination of all those documentation for GitHub Pages
-      doc-pages = self.callPackage ./pkgs/doc-pages.nix { };
     }
   )
 
