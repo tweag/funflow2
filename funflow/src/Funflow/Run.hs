@@ -41,12 +41,14 @@ import qualified Data.CAS.RemoteCache as RC
 import Data.Either (isLeft)
 --import Funflow.Tasks.Config (ConfigTask (FileConfigTask))
 
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Lazy as Map
 import Data.Profunctor.Trans (Reader, Writer, reading, runWriter, writing)
 import Data.Set (fromList)
 import Data.String (IsString (fromString))
 import qualified Data.Text as T
+import Data.Yaml as YAML
 import Docker.API.Client
   ( ContainerSpec (cmd),
     OS (OS),
@@ -59,7 +61,7 @@ import Docker.API.Client
     saveContainerArchive,
     workingDir,
   )
-import Funflow.Config (ConfigMap, ExternalConfigEnabled (..), configId, configIds)
+import Funflow.Config (ConfigMap, Configurable (Literal), ExternalConfigEnabled (..), configId, configIds)
 import Funflow.Flow (RequiredCore, RequiredStrands)
 import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
@@ -125,7 +127,9 @@ runFlowWithConfig config flow input =
             -- TODO -> This will need to be runReader configMap (...)
             -- Collect the list of docker images that will be used from the (Cayley Writer [String]) layer
             --(dockerTaskConfigs :: [T.Text], pipelineWithImageWriter) = runWriter weavedPipeline
-            ((dockerConfigs :: HashSet.HashSet T.Text, dockerImages :: [T.Text]), weavePipeline') = runWriter weavedPipeline
+            ((dockerConfigs :: HashSet.HashSet T.Text, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
+            wipPlaceholders = HashMap.fromList [("foo", YAML.String "bar")] :: YAML.Object
+            weavePipeline' = runReader (wipPlaceholders, wipPlaceholders, wipPlaceholders) pipelineWithDockerConfigReader
             -- Run the reader layer for caching
             -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
             core = runReader (localStoreWithId store $ defaultCachingId) weavePipeline'
@@ -222,14 +226,17 @@ interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.co
             let rendered = renderConfigurables (DockerTaskConfig {DE.image, DE.command, DE.args}) externalConfig
                 argsFilled =
                   [ ( case arg of
-                        Arg value -> Right value
+                        Arg configValue -> case configValue of -- Right value
+                          Literal (value :: T.Text) -> Right value
+                          -- TODO
+                          _ -> error "DockerTask was provided with a `Configurable` value that does not exist in the input ConfigMaps."
                         Placeholder label ->
                           let maybeVal = Map.lookup label argsVals
                            in case maybeVal of
                                 Nothing -> Left label
                                 Just val -> Right val
                     )
-                    | arg <- args
+                    | arg <- DE.args rendered
                   ]
              in -- Error if one of the required arg label is not filled
                 if any isLeft argsFilled

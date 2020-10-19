@@ -18,7 +18,8 @@ import Data.HashMap.Strict ((!))
 import Data.String (IsString, fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Funflow.Config (ConfigMap, Configurable (..), ExternalConfigEnabled (..))
+import Data.Yaml (Object, Parser, parseMaybe, (.:))
+import Funflow.Config (ConfigMap, Configurable (..), ExternalConfigEnabled (..), configIds)
 import Path (Abs, Dir, Path)
 
 -- | Configure what task to run in Docker
@@ -32,7 +33,7 @@ data DockerTaskConfig = DockerTaskConfig
   }
 
 instance ExternalConfigEnabled DockerTaskConfig where
-  getConfigurables dockerTaskConfig = foldl get [] (args dockerTaskConfig)
+  getConfigurableIds dockerTaskConfig = configIds $ foldl get [] (args dockerTaskConfig)
     where
       get acc arg = case arg of
         Arg conf -> acc ++ [conf]
@@ -44,16 +45,24 @@ instance ExternalConfigEnabled DockerTaskConfig where
       render :: (ConfigMap, ConfigMap, ConfigMap) -> [Arg] -> Arg -> [Arg]
       render (fileConfig, envConfig, cliConfig) acc arg = case arg of
         Arg c -> case c of
-          FromFile _ key -> acc ++ [Arg $ Literal $ fileConfig ! key]
-          FromEnv _ key -> acc ++ [Arg $ Literal $ envConfig ! key]
-          FromCLI _ key -> acc ++ [Arg $ Literal $ cliConfig ! key]
+          FromFile key -> acc ++ [checkIfMaybe arg $ valueFromObject key fileConfig]
+          FromEnv key -> acc ++ [checkIfMaybe arg $ valueFromObject key envConfig]
+          FromCLI key -> acc ++ [checkIfMaybe arg $ valueFromObject key cliConfig]
           Literal _ -> acc ++ [arg]
         _ -> acc ++ [arg]
+      valueFromObject :: Text -> (Object -> Maybe Text)
+      valueFromObject k = parseMaybe (.: k)
+      checkIfMaybe :: Arg -> Maybe Text -> Arg
+      checkIfMaybe arg val = case val of
+        Just v -> Arg $ Literal v
+        Nothing -> arg
+
+-- TODO: Missing a constraint indicating that Arg has to be a Text
 
 -- | Represent an argument to pass to the command run inside of a Docker container
 data Arg
   = -- | Raw text argument
-    Arg Configurable
+    Arg (Configurable Text)
   | -- | A placeholder for an argument to be passed as runtime input to the task (filled by @argsVals@)
     Placeholder String
 
