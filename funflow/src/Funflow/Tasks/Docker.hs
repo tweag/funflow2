@@ -38,6 +38,7 @@ instance ExternalConfigEnabled DockerTaskConfig where
       get acc arg = case arg of
         Arg conf -> acc ++ [conf]
         _ -> acc
+
   renderConfigurables dockerTaskConfig (file, env, cli) =
     let renderedArgs = foldl (render (file, env, cli)) [] $ args dockerTaskConfig
      in dockerTaskConfig {args = renderedArgs}

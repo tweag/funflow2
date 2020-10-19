@@ -61,7 +61,7 @@ import Docker.API.Client
     saveContainerArchive,
     workingDir,
   )
-import Funflow.Config (ConfigMap, Configurable (Literal), ExternalConfigEnabled (..), configId, configIds)
+import Funflow.Config (ConfigMap, Configurable (Literal), ExternalConfigEnabled (..))
 import Funflow.Flow (RequiredCore, RequiredStrands)
 import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
@@ -216,7 +216,7 @@ interpretDockerTask ::
 interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.command, DE.args})) =
   -- TODO: It would be cleaner if we could make configurable fields have a type class which
   -- implements something like `isConfigurable` below
-  let requiredConfigs = configIds $ getConfigurables DockerTaskConfig {DE.image, DE.command, DE.args}
+  let requiredConfigs = getConfigurableIds DockerTaskConfig {DE.image, DE.command, DE.args}
    in -- Add the image to the list of docker images stored in the Cayley Writer [T.Text]
       --writing (HashSet.fromList ["foo", "bar"]) $
       writing (HashSet.fromList requiredConfigs, [image]) $
@@ -227,8 +227,8 @@ interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.co
                 argsFilled =
                   [ ( case arg of
                         Arg configValue -> case configValue of -- Right value
-                          Literal (value :: T.Text) -> Right value
-                          -- TODO
+                          Literal value -> Right value
+                          -- TODO -> Use throwString instead
                           _ -> error "DockerTask was provided with a `Configurable` value that does not exist in the input ConfigMaps."
                         Placeholder label ->
                           let maybeVal = Map.lookup label argsVals
