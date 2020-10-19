@@ -37,7 +37,7 @@ jobs:
           TESTS_PATH=$(nix-build -A funflow-tests)
           echo Running tests
           # Funflow tests have to be run in the `funflow` folder, like stack does, in order to have access to test assets
-          cd ./funflow
+          cd ./funflow  
           $TESTS_PATH/bin/test-funflow
           cd ..
       # Build documentation
