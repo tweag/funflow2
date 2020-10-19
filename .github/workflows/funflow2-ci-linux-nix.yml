@@ -51,12 +51,12 @@ jobs:
           cp -rL ./funflow-docs/share/* ./funflow-docs-materialized/share
 
           # 2. Documentation index
-          nix-build -A doc-index -o result
-          cp result/share/index.html ./funflow-docs-materialized/share
-          
+          nix-build -A doc-index -o funflow-docs-index
+          cp funflow-docs-index/share/index.html ./funflow-docs-materialized/share
+
           # 3. Tutorials
-          nix-build -A generate-funflow-tutorials -o result
-          result/bin/generate-funflow-tutorial funflow-tutorial/notebooks ./funflow-docs-materialized/share/tutorial
+          nix-build -A generate-funflow-tutorials -o funflow-docs-tutorials
+          funflow-docs-tutorials/bin/generate-funflow-tutorial funflow-tutorial/notebooks ./funflow-docs-materialized/share/tutorials
       # Deploy documentation to a github page
       - name: Deploy docs
         # Push to GitHub Pages only on master

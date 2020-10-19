@@ -79,15 +79,31 @@
     { funflow-tutorial-jupyter = super.callPackage ./pkgs/jupyter.nix { }; }
   )
 
-  # Script for building tutorial html docs
+  # Documentation
   (self: super:
-    { generate-funflow-tutorials = super.callPackage ./pkgs/tutorials.nix { nbconvert=self.python3Packages.nbconvert; }; }
+    {
+      # Index page
+      doc-index = super.callPackage ./pkgs/doc-index.nix { };
+      api-docs = 
+        let
+          doc-libs = with self; [
+            funflow
+            funflow-tests
+            cas-store
+            cas-hashable
+            cas-hashable-s3
+            external-executor
+            docker-client
+          ];
+        in
+          self.haddock-combine { hspkgs = doc-libs; };
+      # Script for building tutorial html docs
+      generate-funflow-tutorials = super.callPackage ./pkgs/tutorials.nix { nbconvert=self.python3Packages.nbconvert; };
+      # Combination of all those documentation for GitHub Pages
+      doc-pages = self.callPackage ./pkgs/doc-pages.nix { };
+    }
   )
 
-  # Documentation index.html page
-  (self: super:
-    { generate-doc-index = super.callPackage ./pkgs/doc-index.nix { }; }
-  )
 
   # Utility function for combining haddock docs into a single closure with 
   # relative hyperlinks (so they work on GitHub pages)
