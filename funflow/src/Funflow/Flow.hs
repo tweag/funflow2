@@ -34,6 +34,7 @@ import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, strand)
 import Control.Monad.IO.Class (MonadIO)
 import Data.CAS.ContentStore as CS
 import Docker.API.Client (DockerClientError)
+import Funflow.Tasks.Config (ConfigTask (FileConfigTask))
 import Funflow.Tasks.Docker (DockerTask (DockerTask), DockerTaskConfig, DockerTaskInput)
 import Funflow.Tasks.Simple (SimpleTask (IOTask, PureTask))
 import Funflow.Tasks.Store (StoreTask (GetDir, PutDir))
@@ -46,6 +47,7 @@ type RequiredStrands =
   '[ '("simple", SimpleTask),
      '("store", StoreTask),
      '("docker", DockerTask)
+     --'("config", ConfigTask)
    ]
 
 -- | The class constraints on the "core task".
@@ -109,6 +111,15 @@ instance IsFlow DockerTask where
 -- | Make a flow from the configuration of a Docker task
 dockerFlow :: DockerTaskConfig -> Flow DockerTaskInput CS.Item
 dockerFlow = toFlow . DockerTask
+
+-- Explicitely NOT creating a smart constructor, `configFlow`
+-- for ConfigTasks since they should be implicitely included in
+-- the `runFlow` function configFlow. Don't want users to be
+-- able to define an extra config step in their flows.
+--
+-- configFlow = X
+-- instance IsFlow ConfigTask where
+--   toFlow = strand #config
 
 instance IsFlow StoreTask where
   toFlow = strand #store
