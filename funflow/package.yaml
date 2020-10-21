@@ -33,6 +33,7 @@ dependencies:
   - text
   - unix-compat
   - unordered-containers
+  - utf8-string
   - yaml
 
 library:

@@ -8,6 +8,7 @@
 
 import Control.Exception.Safe (SomeException)
 import qualified Data.CAS.ContentStore as CS
+import Data.Text as T
 import Docker.API.Client (DockerClientError (ContainerCreationFailedError))
 import Funflow
   ( Flow,
@@ -21,7 +22,8 @@ import Funflow
     runFlowWithConfig,
     tryE,
   )
-import Funflow.Tasks.Docker (DockerTaskConfig (DockerTaskConfig), DockerTaskInput (DockerTaskInput), VolumeBinding (VolumeBinding))
+import Funflow.Config (Configurable (FromFile, Literal))
+import Funflow.Tasks.Docker (Arg, DockerTaskConfig (DockerTaskConfig), DockerTaskInput (DockerTaskInput), VolumeBinding (VolumeBinding))
 import qualified Funflow.Tasks.Docker as DE
 import Path (Abs, Dir, Rel, absdir, parseAbsDir, reldir, (</>))
 import System.Directory (getCurrentDirectory)
@@ -82,12 +84,13 @@ someStoreFlow = proc () -> do
 
 someDockerFlow :: Flow () CS.Item
 someDockerFlow = proc () -> do
-  dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["-c", "print('someDockerFlow worked')"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
+  -- DE.Arg $ Literal "print('someDockerFlow worked')"
+  dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = [DE.Arg $ Literal "-c", DE.Arg $ FromFile "python.command"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
 
 someDockerFlowWithInputs :: Flow () CS.Item
 someDockerFlowWithInputs = proc () -> do
-  item <- dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["-c", "with open('test.py', 'w') as f: f.write('print(\\'Hello world\\')')"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
-  dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["/script/test.py"]}) -< DockerTaskInput {DE.inputBindings = [VolumeBinding {DE.item = item, DE.mount = [absdir|/script/|]}], DE.argsVals = mempty}
+  item <- dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = [DE.Arg $ Literal "-c", DE.Arg $ Literal "with open('test.py', 'w') as f: f.write('print(\\'Hello world\\')')"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
+  dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = [DE.Arg $ Literal "/script/test.py"]}) -< DockerTaskInput {DE.inputBindings = [VolumeBinding {DE.item = item, DE.mount = [absdir|/script/|]}], DE.argsVals = mempty}
 
 someDockerFlowThatFails :: Flow () ()
 someDockerFlowThatFails =

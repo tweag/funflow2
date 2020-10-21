@@ -19,7 +19,7 @@ import Data.String (IsString, fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Yaml (Object, Parser, parseMaybe, (.:))
-import Funflow.Config (ConfigMap, Configurable (..), ExternalConfigEnabled (..), configIds)
+import Funflow.Config (ConfigMap, Configurable (..), ExternalConfigEnabled (..), configIds, render)
 import Path (Abs, Dir, Path)
 
 -- | Configure what task to run in Docker
@@ -32,31 +32,41 @@ data DockerTaskConfig = DockerTaskConfig
     args :: [Arg]
   }
 
-instance ExternalConfigEnabled DockerTaskConfig where
-  getConfigurableIds dockerTaskConfig = configIds $ foldl get [] (args dockerTaskConfig)
-    where
-      get acc arg = case arg of
-        Arg conf -> acc ++ [conf]
-        _ -> acc
+foo = render $ Literal $ T.pack "foo"
 
-  renderConfigurables dockerTaskConfig (file, env, cli) =
-    let renderedArgs = foldl (render (file, env, cli)) [] $ args dockerTaskConfig
-     in dockerTaskConfig {args = renderedArgs}
-    where
-      render :: (ConfigMap, ConfigMap, ConfigMap) -> [Arg] -> Arg -> [Arg]
-      render (fileConfig, envConfig, cliConfig) acc arg = case arg of
-        Arg c -> case c of
-          FromFile key -> acc ++ [checkIfMaybe arg $ valueFromObject key fileConfig]
-          FromEnv key -> acc ++ [checkIfMaybe arg $ valueFromObject key envConfig]
-          FromCLI key -> acc ++ [checkIfMaybe arg $ valueFromObject key cliConfig]
-          Literal _ -> acc ++ [arg]
-        _ -> acc ++ [arg]
-      valueFromObject :: Text -> (Object -> Maybe Text)
-      valueFromObject k = parseMaybe (.: k)
-      checkIfMaybe :: Arg -> Maybe Text -> Arg
-      checkIfMaybe arg val = case val of
-        Just v -> Arg $ Literal v
-        Nothing -> arg
+-- instance ExternalConfigEnabled DockerTaskConfig where
+--   getConfigurableIds dockerTaskConfig = configIds $ foldl get [] (args dockerTaskConfig)
+--     where
+--       get acc arg = case arg of
+--         Arg conf -> acc ++ [conf]
+--         _ -> acc
+
+--   mapConfig dockerTaskConfig f =
+--     let mapArg arg = case arg of
+--           Arg configurable -> f configurable
+--           _ -> arg
+--      in dockerTaskConfig {args = map mapArg $ args dockerTaskConfig}
+
+--   withConfig dockerTaskConfig f = []
+
+-- renderConfigurables dockerTaskConfig (file, env, cli) =
+--   let renderedArgs = foldl (render (file, env, cli)) [] $ args dockerTaskConfig
+--    in dockerTaskConfig {args = renderedArgs}
+--   where
+--     render :: (ConfigMap, ConfigMap, ConfigMap) -> [Arg] -> Arg -> [Arg]
+--     render (fileConfig, envConfig, cliConfig) acc arg = case arg of
+--       Arg c -> case c of
+--         FromFile key -> acc ++ [checkIfMaybe arg $ valueFromObject key fileConfig]
+--         FromEnv key -> acc ++ [checkIfMaybe arg $ valueFromObject key envConfig]
+--         FromCLI key -> acc ++ [checkIfMaybe arg $ valueFromObject key cliConfig]
+--         Literal _ -> acc ++ [arg]
+--       _ -> acc ++ [arg]
+--     valueFromObject :: Text -> (Object -> Maybe Text)
+--     valueFromObject k = parseMaybe (.: k)
+--     checkIfMaybe :: Arg -> Maybe Text -> Arg
+--     checkIfMaybe arg val = case val of
+--       Just v -> Arg $ Literal v
+--       Nothing -> arg
 
 -- TODO: Missing a constraint indicating that Arg has to be a Text
 
@@ -66,10 +76,6 @@ data Arg
     Arg (Configurable Text)
   | -- | A placeholder for an argument to be passed as runtime input to the task (filled by @argsVals@)
     Placeholder String
-
--- -- | Allow to write fixed textual arguments directly as strings
--- instance IsString Arg where
---   fromString = Arg . T.pack
 
 -- | Input to a Docker task to finalize its configuration
 data DockerTaskInput = DockerTaskInput

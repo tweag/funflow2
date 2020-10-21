@@ -128,7 +128,7 @@ runFlowWithConfig config flow input =
             -- Collect the list of docker images that will be used from the (Cayley Writer [String]) layer
             --(dockerTaskConfigs :: [T.Text], pipelineWithImageWriter) = runWriter weavedPipeline
             ((dockerConfigs :: HashSet.HashSet T.Text, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
-            wipPlaceholders = HashMap.fromList [("foo", YAML.String "bar")] :: YAML.Object
+            wipPlaceholders = HashMap.fromList [("python.command", YAML.String "print(\"this came from a config!\")")] :: YAML.Object
             weavePipeline' = runReader (wipPlaceholders, wipPlaceholders, wipPlaceholders) pipelineWithDockerConfigReader
             -- Run the reader layer for caching
             -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
