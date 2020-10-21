@@ -43,6 +43,7 @@ import Data.Either (isLeft)
 
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
+import Data.Maybe (mapMaybe)
 import qualified Data.Map.Lazy as Map
 import Data.Profunctor.Trans (Reader, Writer, reading, runWriter, writing)
 import Data.Set (fromList)
@@ -61,7 +62,7 @@ import Docker.API.Client
     saveContainerArchive,
     workingDir,
   )
-import Funflow.Config (ConfigMap, Configurable (Literal), ExternalConfigEnabled (..))
+import Funflow.Config (ConfigKey, ConfigMap, Configurable (Literal), ExternalConfig (..), configId, render)
 import Funflow.Flow (RequiredCore, RequiredStrands)
 import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
@@ -129,7 +130,8 @@ runFlowWithConfig config flow input =
             --(dockerTaskConfigs :: [T.Text], pipelineWithImageWriter) = runWriter weavedPipeline
             ((dockerConfigs :: HashSet.HashSet T.Text, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
             wipPlaceholders = HashMap.fromList [("python.command", YAML.String "print(\"this came from a config!\")")] :: YAML.Object
-            weavePipeline' = runReader (wipPlaceholders, wipPlaceholders, wipPlaceholders) pipelineWithDockerConfigReader
+            wipConfig = ExternalConfig {fileConfig = wipPlaceholders, envConfig = wipPlaceholders, cliConfig = wipPlaceholders}
+            weavePipeline' = runReader wipConfig pipelineWithDockerConfigReader
             -- Run the reader layer for caching
             -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
             core = runReader (localStoreWithId store $ defaultCachingId) weavePipeline'
@@ -212,37 +214,38 @@ interpretDockerTask ::
   Manager ->
   CS.ContentStore ->
   DockerTask i o ->
-  (Writer (HashSet.HashSet T.Text, [T.Text]) ~> (Reader (ConfigMap, ConfigMap, ConfigMap) ~> core)) i o
+  (Writer (HashSet.HashSet T.Text, [T.Text]) ~> (Reader ExternalConfig ~> core)) i o
 interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.command, DE.args})) =
   -- TODO: It would be cleaner if we could make configurable fields have a type class which
   -- implements something like `isConfigurable` below
-  let requiredConfigs = getConfigurableIds DockerTaskConfig {DE.image, DE.command, DE.args}
+  let requiredConfigs = mapMaybe getIdFromArg $ DE.args DockerTaskConfig {DE.image, DE.command, DE.args}
    in -- Add the image to the list of docker images stored in the Cayley Writer [T.Text]
       --writing (HashSet.fromList ["foo", "bar"]) $
       writing (HashSet.fromList requiredConfigs, [image]) $
         reading $ \externalConfig ->
           liftKleisliIO $ \(DockerTaskInput {DE.inputBindings, DE.argsVals}) ->
-            -- Check args placeholder fullfillment, right is value, left is unfullfilled label
-            let rendered = renderConfigurables (DockerTaskConfig {DE.image, DE.command, DE.args}) externalConfig
+            let renderedWithConfig = map (renderArg externalConfig) $ DE.args DockerTaskConfig {DE.image, DE.command, DE.args}
+                -- Check args placeholder fullfillment, right is value, left is unfullfilled label
                 argsFilled =
                   [ ( case arg of
-                        Arg configValue -> case configValue of -- Right value
-                          Literal value -> Right value
-                          -- TODO -> Use throwString instead
-                          _ -> error "DockerTask was provided with a `Configurable` value that does not exist in the input ConfigMaps."
-                        Placeholder label ->
-                          let maybeVal = Map.lookup label argsVals
-                           in case maybeVal of
-                                Nothing -> Left label
-                                Just val -> Right val
+                        Left configError -> Left configError
+                        Right a -> case a of
+                          Arg configValue -> case configValue of -- Right value
+                            Literal value -> Right value
+                            _ -> error "Kaboom! interpretDockerTask encountered an unrendered externally configurable value which should never happen."
+                          Placeholder label ->
+                            let maybeVal = Map.lookup label argsVals
+                             in case maybeVal of
+                                  Nothing -> Left $ "Unfilled label" ++ label
+                                  Just val -> Right val
                     )
-                    | arg <- DE.args rendered
+                    | arg <- renderedWithConfig
                   ]
-             in -- Error if one of the required arg label is not filled
+             in -- Error if one of the required configs or arg labels are not filled
                 if any isLeft argsFilled
                   then
-                    let unfullfilledLabels = [label | (Left label) <- argsFilled]
-                     in throwString $ "Docker task failed with error: missing arguments with labels: " ++ show unfullfilledLabels
+                    let labelAndConfigErrors = [errMsg | (Left errMsg) <- argsFilled]
+                     in throwString $ "Docker task failed with configuration errors: " ++ show labelAndConfigErrors
                   else do
                     let argsFilledChecked = [argVal | (Right argVal) <- argsFilled]
                     uid <- getEffectiveUserID
@@ -280,6 +283,18 @@ interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.co
                                   -- After moving files and directories to item directory, remove the directory named after the working directory
                                   removeDirectory $ toFilePath itemWorkdir
                          in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, containerId, runDockerResult)
+  where
+    getIdFromArg :: Arg -> Maybe ConfigKey
+    getIdFromArg arg = case arg of
+      Arg configurable -> configId configurable
+      _ -> Nothing
+
+    renderArg :: ExternalConfig -> Arg -> Either String Arg
+    renderArg external arg = case arg of
+      Arg configurable -> case render configurable external of
+        Left err -> Left err
+        Right renderedConfig -> Right $ Arg renderedConfig
+      _ -> Right arg
 
 -- interpretSimpleTask :: (Arrow a, HasKleisliIO m a) => SimpleTask i o -> a i o
 -- interpretSimpleTask simpleTask = case simpleTask of

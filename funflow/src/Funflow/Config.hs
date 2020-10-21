@@ -39,16 +39,18 @@ hello = Literal 1
 goodbye :: Configurable Integer
 goodbye = FromFile "foo.bar"
 
--- | Class for data types which can be used with external configuration.
-class ExternalConfigEnabled a where
-  -- | Gets a list of all required config keys. This is the coarsest level
-  -- we can collect configurables on without using an HList since the
-  -- configs can be of different types.
-  getConfigurableIds :: a -> [ConfigKey]
+---- | Class for data types which can be used with external configuration.
+-- class ExternalConfigEnabled a where
+--   -- | Gets a list of all required config keys. This is the coarsest level
+--   -- we can collect configurables on without using an HList since the
+--   -- configs can be of different types.
+--   getConfigurableIds :: a -> [ConfigKey]
 
-  mapConfig :: a -> (Configurable b -> Configurable b) -> a
+--   mapConfig :: forall b. a -> (Configurable b -> Configurable b) -> a
 
-  withConfig :: a -> (Configurable b -> c) -> [c]
+--   withConfig :: a -> (Configurable b -> c) -> [c]
+
+-- DockerTaskConfig -> \c -> \c ->
 
 -- Note: Errors should be raised in the interpreter, so all of this stuff just returns
 -- the messages.

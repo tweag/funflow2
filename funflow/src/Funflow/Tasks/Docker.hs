@@ -19,7 +19,7 @@ import Data.String (IsString, fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Yaml (Object, Parser, parseMaybe, (.:))
-import Funflow.Config (ConfigMap, Configurable (..), ExternalConfigEnabled (..), configIds, render)
+import Funflow.Config (ConfigMap, Configurable (..), configIds, render)
 import Path (Abs, Dir, Path)
 
 -- | Configure what task to run in Docker
@@ -41,11 +41,12 @@ foo = render $ Literal $ T.pack "foo"
 --         Arg conf -> acc ++ [conf]
 --         _ -> acc
 
---   mapConfig dockerTaskConfig f =
---     let mapArg arg = case arg of
---           Arg configurable -> f configurable
---           _ -> arg
---      in dockerTaskConfig {args = map mapArg $ args dockerTaskConfig}
+--   mapConfig dockerTaskConfig f = dockerTaskConfig {args = map (mapArg f) $ args dockerTaskConfig}
+--     where
+--       mapArg :: (Configurable b -> Configurable b) -> Arg -> Arg
+--       mapArg doFunc arg = case arg of
+--         Arg configurable -> Arg $ doFunc configurable
+--         _ -> arg
 
 --   withConfig dockerTaskConfig f = []
 
