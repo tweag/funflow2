@@ -32,26 +32,6 @@ data Configurable a where
   FromCLI :: FromJSON a => ConfigKey -> Configurable a
   Literal :: a -> Configurable a
 
--- Debugging - delete these
-hello :: Configurable Integer
-hello = Literal 1
-
-goodbye :: Configurable Integer
-goodbye = FromFile "foo.bar"
-
----- | Class for data types which can be used with external configuration.
--- class ExternalConfigEnabled a where
---   -- | Gets a list of all required config keys. This is the coarsest level
---   -- we can collect configurables on without using an HList since the
---   -- configs can be of different types.
---   getConfigurableIds :: a -> [ConfigKey]
-
---   mapConfig :: forall b. a -> (Configurable b -> Configurable b) -> a
-
---   withConfig :: a -> (Configurable b -> c) -> [c]
-
--- DockerTaskConfig -> \c -> \c ->
-
 -- Note: Errors should be raised in the interpreter, so all of this stuff just returns
 -- the messages.
 
@@ -84,6 +64,8 @@ configId conf = case conf of
 -- of configurable values of the same type.
 configIds :: [Configurable a] -> [ConfigKey]
 configIds = mapMaybe configId
+
+-- TODO config file, env, and cli read functions
 
 -- readEnv :: ConfigKey -> IO Object
 -- readEnv key = do

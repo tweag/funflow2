@@ -123,12 +123,9 @@ runFlowWithConfig config flow input =
                 -- Strip of empty list of strands (after all weaves)
                 & untwine
 
-            -- TODO -> Run Task configmap writer to get the config map here
-
-            -- TODO -> This will need to be runReader configMap (...)
-            -- Collect the list of docker images that will be used from the (Cayley Writer [String]) layer
-            --(dockerTaskConfigs :: [T.Text], pipelineWithImageWriter) = runWriter weavedPipeline
+            -- Extract all required external configs and docker images from DockerTasks
             ((dockerConfigs :: HashSet.HashSet T.Text, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
+            --
             wipPlaceholders = HashMap.fromList [("python.command", YAML.String "print(\"this came from a config!\")")] :: YAML.Object
             wipConfig = ExternalConfig {fileConfig = wipPlaceholders, envConfig = wipPlaceholders, cliConfig = wipPlaceholders}
             weavePipeline' = runReader wipConfig pipelineWithDockerConfigReader
@@ -230,7 +227,7 @@ interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.co
                   [ ( case arg of
                         Left configError -> Left configError
                         Right a -> case a of
-                          Arg configValue -> case configValue of -- Right value
+                          Arg configValue -> case configValue of
                             Literal value -> Right value
                             _ -> error "Kaboom! interpretDockerTask encountered an unrendered externally configurable value which should never happen."
                           Placeholder label ->
@@ -295,46 +292,3 @@ interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.co
         Left err -> Left err
         Right renderedConfig -> Right $ Arg renderedConfig
       _ -> Right arg
-
--- interpretSimpleTask :: (Arrow a, HasKleisliIO m a) => SimpleTask i o -> a i o
--- interpretSimpleTask simpleTask = case simpleTask of
---   PureTask f -> arr f
---   IOTask f -> liftKleisliIO f
-
--- Configurable tasks Write their required config to a writer and read their required config from a reader
--- The singular config task performs IO to create a Map of config values. This IO happens at LOAD TIME
--- The result of this IO is what gets READ in downstream TASKS
--- configurable tasks should be wrapped like: Writer (Reader (Effect)). This way we can write the
--- required values for config validation then use the reader to read the values coming in from the config
--- The ? is whether the ConfigTask needs to return its value wrapped in a reader. I think the answer is yes
-
--- This is how you have an interpreter READ an input config map
--- reading $ \configMap -> returnA . Map.get configMap configKey
-
--- Do we really need an interpreter? i.e. are there any use cases for a core effect
--- as a part of config if config is processed at load time.
-
--- What if I want to access options within the docker container? Would need to mount the options file
---
---
--- READER : {MAP OF CONFIG FIELDS}
--- read config file and produce a map
--- do:
--- for each field in config fields
---  case fileconfig -> check if its in the map and return the value
---  case cliconfig -> check if we have some type of cli context and check it for the value
---  case envconfig -> read from environment and make sure it is non-empty
-
--- interpretConfigTask ::
---   (Arrow core, HasKleisliIO m core) =>
---   ConfigTask () o ->
---   (Reader Map.Map ~> core) () o
--- interpretConfigTask task = writing $ case task of
---   FileConfigTask getConfigPath -> do
---     -- Read the whole schebang
---     liftKleisliIO $ do
---       configPath <- getConfigPath
---       -- Read the yaml into a map
---       -- Placeholder
---       return Map.empty
--- interpretConfigTask (GetConfig configKey) = writing myMap $ reading $ \configMap -> returnA . Map.get configMap configKey
