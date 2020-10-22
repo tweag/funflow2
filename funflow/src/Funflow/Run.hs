@@ -62,7 +62,7 @@ import Docker.API.Client
     saveContainerArchive,
     workingDir,
   )
-import Funflow.Config (ConfigKey, ConfigMap, Configurable (Literal), ExternalConfig (..), configId, render)
+import Funflow.Config (ConfigKey, ConfigMap, Configurable (Literal), ExternalConfig (..), configId, readEnv, readYamlFileConfig, render)
 import Funflow.Flow (RequiredCore, RequiredStrands)
 import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
@@ -125,13 +125,20 @@ runFlowWithConfig config flow input =
 
             -- Extract all required external configs and docker images from DockerTasks
             ((dockerConfigs :: HashSet.HashSet T.Text, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
-            --
+
             wipPlaceholders = HashMap.fromList [("python.command", YAML.String "print(\"this came from a config!\")")] :: YAML.Object
-            wipConfig = ExternalConfig {fileConfig = wipPlaceholders, envConfig = wipPlaceholders, cliConfig = wipPlaceholders}
-            weavePipeline' = runReader wipConfig pipelineWithDockerConfigReader
+
+        -- Run IO Actions to read config file, env vars, etc:
+        fConf <- case configFile of
+          Nothing -> return HashMap.empty
+          Just path -> readYamlFileConfig $ toFilePath path
+
+        -- Feed external config into tasks which use config:
+        let externalConfig = ExternalConfig {fileConfig = fConf, envConfig = HashMap.fromList [], cliConfig = wipPlaceholders}
+            weavePipeline' = runReader externalConfig pipelineWithDockerConfigReader
             -- Run the reader layer for caching
             -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
-            core = runReader (localStoreWithId store $ defaultCachingId) weavePipeline'
+            core = runReader (localStoreWithId store defaultCachingId) weavePipeline'
 
         print $ "HELLO! The configs are: " ++ (show dockerConfigs)
         -- Perform some IO to extract our configuration

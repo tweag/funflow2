@@ -6,12 +6,16 @@
 module Funflow.Config where
 
 import Control.Exception (Exception)
+import Control.Exception.Safe (throwString)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString as B
 import Data.ByteString.UTF8 as BSU
+import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (mapMaybe)
 import qualified Data.Scientific as SC
 import Data.Text (Text, pack, unpack)
-import Data.Yaml (FromJSON, Object, Value, decodeThrow, parseEither, (.:))
+import Data.Yaml (FromJSON, Object, ParseException, Value, decodeEither, decodeEither', decodeFileThrow, decodeThrow, encode, object, parseEither, prettyPrintParseException, (.:))
+import qualified Data.Yaml as YAML
 import System.Environment (lookupEnv)
 
 type ConfigKey = Text
@@ -20,13 +24,16 @@ type ConfigKey = Text
 -- text anyways.
 type ConfigMap = Object
 
+type EnvConfigMap = HashMap.HashMap Text String
 data ExternalConfig = ExternalConfig
+
   { fileConfig :: ConfigMap,
-    envConfig :: ConfigMap,
+    envConfig :: EnvConfigMap,
     cliConfig :: ConfigMap
   }
-data Configurable a where
+  deriving (Show)
 
+data Configurable a where
   FromFile :: FromJSON a => ConfigKey -> Configurable a
   FromEnv :: FromJSON a => ConfigKey -> Configurable a
   FromCLI :: FromJSON a => ConfigKey -> Configurable a
@@ -40,12 +47,23 @@ data Configurable a where
 render :: forall a. Configurable a -> ExternalConfig -> Either String (Configurable a)
 render configVal extConfig = case configVal of
   FromFile key -> appendErrorContext key "config file" $ valueFromObject key $ fileConfig extConfig
-  FromEnv key -> appendErrorContext key "environment variable" $ valueFromObject key $ fileConfig extConfig
-  FromCLI key -> appendErrorContext key "CLI args" $ valueFromObject key $ fileConfig extConfig
+  FromEnv key -> appendErrorContext key "environment variable" $ valueFromStrings key $ envConfig extConfig
+  FromCLI key -> appendErrorContext key "CLI args" $ valueFromObject key $ cliConfig extConfig
   Literal _ -> Right configVal
   where
-    valueFromObject :: FromJSON a => Text -> (Object -> Either String a)
-    valueFromObject k = parseEither (.: k)
+    valueFromStrings :: FromJSON a => Text -> EnvConfigMap -> Either String a
+    valueFromStrings k env = case HashMap.lookup k env of
+      Nothing -> Left $ "Failed to find key '" ++ unpack k ++ "' in provided environment variables"
+      Just v -> case (decodeEither' $ BSU.fromString v) :: Either ParseException a of
+        Left parseException -> Left $ prettyPrintParseException parseException
+        Right parseResult -> Right parseResult
+
+    valueFromObject :: FromJSON a => Text -> Object -> Either String a
+    valueFromObject k obj = case HashMap.lookup k obj of
+      Nothing -> Left $ "Failed to find key '" ++ unpack k ++ "' in provided file config"
+      Just v -> case (decodeEither' $ encode v) :: Either ParseException a of
+        Left parseException -> Left $ prettyPrintParseException parseException
+        Right parseResult -> Right parseResult
 
     appendErrorContext :: Text -> String -> Either String a -> Either String (Configurable a)
     appendErrorContext configKey fromConfigName parseResult = case parseResult of
@@ -67,9 +85,16 @@ configIds = mapMaybe configId
 
 -- TODO config file, env, and cli read functions
 
--- readEnv :: ConfigKey -> IO Object
--- readEnv key = do
---   val <- lookupEnv $ unpack key
---   case val of
---     Nothing -> error -- Return an empty object
---     Just v -> decodeThrow BSU.fromString v
+-- | Construct an `Object` from an environment variable. This
+-- will have a default type which will need to get converted to
+-- the requested config type during the render method.
+readEnv :: MonadIO m => ConfigKey -> m (HashMap.HashMap Text String)
+readEnv key = do
+  val <- liftIO $ lookupEnv $ unpack key
+  case val of
+    Nothing -> return HashMap.empty
+    Just v -> return $ HashMap.fromList [(key, v)]
+
+-- | Alias for `decodeFileThrow`
+readYamlFileConfig :: (MonadIO m, FromJSON a) => FilePath -> m a
+readYamlFileConfig = decodeFileThrow
