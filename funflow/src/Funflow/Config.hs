@@ -14,25 +14,30 @@ import Data.Text (Text, unpack)
 import Data.Yaml (FromJSON, Object, ParseException, decodeEither', decodeFileThrow, encode, prettyPrintParseException)
 import System.Environment (lookupEnv)
 
-type ConfigKey = Text
-
 -- Re-using Data.Yaml types here since we are parsing config from
 -- text anyways.
+type ConfigKey = Text
+
 type ConfigMap = Object
 
 type EnvConfigMap = HashMap.HashMap Text String
-data ExternalConfig = ExternalConfig
 
+data ExternalConfig = ExternalConfig
   { fileConfig :: ConfigMap,
     envConfig :: EnvConfigMap,
     cliConfig :: ConfigMap
   }
   deriving (Show)
 
+-- | A value which is intended to be populated using an external source (e.g. a config file)
 data Configurable a where
+  -- | Define a configurable which will be loaded from a config file using the given key
   FromFile :: FromJSON a => ConfigKey -> Configurable a
+  -- | Define a configurable which will be loaded from the specified environment variable
   FromEnv :: FromJSON a => ConfigKey -> Configurable a
+  -- | Define a configurable which will be loaded from the specified command line option
   FromCLI :: FromJSON a => ConfigKey -> Configurable a
+  -- | A literal value which does not need to be loaded from an external config source
   Literal :: a -> Configurable a
 
 -- Note: Errors should be raised in the interpreter, so all of this stuff just returns
@@ -71,75 +76,75 @@ render configVal extConfig = case configVal of
 ---------------------------------------------------------------------
 
 -- | Gets the config key for a configurable value, if it exists.
-configId :: Configurable a -> Maybe ConfigKey
-configId conf = case conf of
+getConfigKey :: Configurable a -> Maybe ConfigKey
+getConfigKey conf = case conf of
   FromFile k -> Just k
   FromEnv k -> Just k
   FromCLI k -> Just k
   Literal _ -> Nothing
 
 -- | Stores ConfigKey values by their declared sources.
-data ConfigIdsBySource = ConfigIdsBySource
-  { fileConfigIds :: HashSet Text,
-    envConfigIds :: HashSet Text,
-    cliConfigIds :: HashSet Text
+data ConfigKeysBySource = ConfigKeysBySource
+  { fileConfigKeys :: HashSet Text,
+    envConfigKeys :: HashSet Text,
+    cliConfigKeys :: HashSet Text
   }
   deriving (Show)
 
 -- Note: Making ConfigKeysBySource a Monoid to make them easier to combine
 -- in Funflow.Run.
 
-instance Semigroup ConfigIdsBySource where
+instance Semigroup ConfigKeysBySource where
   (<>) m1 m2 =
-    ConfigIdsBySource
-      { fileConfigIds = fileConfigIds m1 <> fileConfigIds m2,
-        envConfigIds = envConfigIds m1 <> envConfigIds m2,
-        cliConfigIds = cliConfigIds m1 <> cliConfigIds m2
+    ConfigKeysBySource
+      { fileConfigKeys = fileConfigKeys m1 <> fileConfigKeys m2,
+        envConfigKeys = envConfigKeys m1 <> envConfigKeys m2,
+        cliConfigKeys = cliConfigKeys m1 <> cliConfigKeys m2
       }
 
-instance Monoid ConfigIdsBySource where
+instance Monoid ConfigKeysBySource where
   mempty =
-    ConfigIdsBySource
-      { fileConfigIds = HashSet.empty,
-        envConfigIds = HashSet.empty,
-        cliConfigIds = HashSet.empty
+    ConfigKeysBySource
+      { fileConfigKeys = HashSet.empty,
+        envConfigKeys = HashSet.empty,
+        cliConfigKeys = HashSet.empty
       }
 
 -- | Get the key of a `Configurable` as a `ConfigKeysBySource`.
-configIdBySource :: Configurable a -> ConfigIdsBySource
-configIdBySource conf = case conf of
+configKeyBySource :: Configurable a -> ConfigKeysBySource
+configKeyBySource conf = case conf of
   FromFile k ->
-    ConfigIdsBySource
-      { fileConfigIds = HashSet.fromList [k],
-        envConfigIds = HashSet.empty,
-        cliConfigIds = HashSet.empty
+    ConfigKeysBySource
+      { fileConfigKeys = HashSet.fromList [k],
+        envConfigKeys = HashSet.empty,
+        cliConfigKeys = HashSet.empty
       }
   FromEnv k ->
-    ConfigIdsBySource
-      { fileConfigIds = HashSet.empty,
-        envConfigIds = HashSet.fromList [k],
-        cliConfigIds = HashSet.empty
+    ConfigKeysBySource
+      { fileConfigKeys = HashSet.empty,
+        envConfigKeys = HashSet.fromList [k],
+        cliConfigKeys = HashSet.empty
       }
   FromCLI k ->
-    ConfigIdsBySource
-      { fileConfigIds = HashSet.empty,
-        envConfigIds = HashSet.empty,
-        cliConfigIds = HashSet.fromList [k]
+    ConfigKeysBySource
+      { fileConfigKeys = HashSet.empty,
+        envConfigKeys = HashSet.empty,
+        cliConfigKeys = HashSet.fromList [k]
       }
   _ ->
-    ConfigIdsBySource
-      { fileConfigIds = HashSet.empty,
-        envConfigIds = HashSet.empty,
-        cliConfigIds = HashSet.empty
+    ConfigKeysBySource
+      { fileConfigKeys = HashSet.empty,
+        envConfigKeys = HashSet.empty,
+        cliConfigKeys = HashSet.empty
       }
 
 -- | Get a list of any ConfigKeys which don't exist in their corresponding
 -- field in the providedExternalConfig
-missing :: ExternalConfig -> ConfigIdsBySource -> [ConfigKey]
+missing :: ExternalConfig -> ConfigKeysBySource -> [ConfigKey]
 missing conf ids =
-  let missingFileConfs = filter (not . (flip HashMap.member $ fileConfig conf)) $ HashSet.toList $ fileConfigIds ids
-      missingEnvConfs = filter (not . (flip HashMap.member $ envConfig conf)) $ HashSet.toList $ envConfigIds ids
-      missingCLIConfs = filter (not . (flip HashMap.member $ cliConfig conf)) $ HashSet.toList $ cliConfigIds ids
+  let missingFileConfs = filter (not . (flip HashMap.member $ fileConfig conf)) $ HashSet.toList $ fileConfigKeys ids
+      missingEnvConfs = filter (not . (flip HashMap.member $ envConfig conf)) $ HashSet.toList $ envConfigKeys ids
+      missingCLIConfs = filter (not . (flip HashMap.member $ cliConfig conf)) $ HashSet.toList $ cliConfigKeys ids
    in missingFileConfs ++ missingEnvConfs ++ missingCLIConfs
 
 ---------------------------------------------------------------------

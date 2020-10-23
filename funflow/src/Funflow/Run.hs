@@ -59,7 +59,7 @@ import Docker.API.Client
     saveContainerArchive,
     workingDir,
   )
-import Funflow.Config (ConfigIdsBySource (..), Configurable (..), ExternalConfig (..), configIdBySource, missing, readEnvs, readYamlFileConfig, render)
+import Funflow.Config (ConfigKeysBySource (..), Configurable (..), ExternalConfig (..), configKeyBySource, missing, readEnvs, readYamlFileConfig, render)
 import Funflow.Flow (RequiredCore, RequiredStrands)
 import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
@@ -121,7 +121,7 @@ runFlowWithConfig config flow input =
             -- At this point, the pipeline core is still wrapper in a couple of reader/writer layers.
 
             -- Extract all required external configs and docker images from DockerTasks
-            ((dockerConfigs :: ConfigIdsBySource, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
+            ((dockerConfigs :: ConfigKeysBySource, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
             -- Finally, combine all config keys. You can plug in additional config keys from new task types here.
             requiredConfigs = mconcat [dockerConfigs]
 
@@ -129,7 +129,7 @@ runFlowWithConfig config flow input =
         fConf <- case configFile of
           Nothing -> return HashMap.empty
           Just path -> readYamlFileConfig $ toFilePath path
-        eConf <- readEnvs $ HashSet.toList $ envConfigIds dockerConfigs
+        eConf <- readEnvs $ HashSet.toList $ envConfigKeys dockerConfigs
         -- TODO: Support for configurations via a CLI.
         let externalConfig = ExternalConfig {fileConfig = fConf, envConfig = eConf, cliConfig = HashMap.empty}
             missingConfigs = missing externalConfig requiredConfigs
@@ -222,7 +222,7 @@ interpretDockerTask ::
   Manager ->
   CS.ContentStore ->
   DockerTask i o ->
-  (Writer (ConfigIdsBySource, [T.Text]) ~> Reader ExternalConfig ~> Writer [String] ~> core) i o
+  (Writer (ConfigKeysBySource, [T.Text]) ~> Reader ExternalConfig ~> Writer [String] ~> core) i o
 interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.command, DE.args})) =
   let requiredConfigs = mconcat $ mapMaybe getIdFromArg args
    in -- Add the image to the list of docker images stored in the Cayley Writer [T.Text]
@@ -290,9 +290,9 @@ interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.co
                                         removeDirectory $ toFilePath itemWorkdir
                                in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, containerId, runDockerResult)
   where
-    getIdFromArg :: Arg -> Maybe ConfigIdsBySource
+    getIdFromArg :: Arg -> Maybe ConfigKeysBySource
     getIdFromArg arg = case arg of
-      Arg configurable -> Just $ configIdBySource configurable
+      Arg configurable -> Just $ configKeyBySource configurable
       _ -> Nothing
 
     renderArg :: ExternalConfig -> Arg -> Either String Arg
