@@ -38,13 +38,12 @@ import Control.Monad.Except (runExceptT)
 import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent))
 import qualified Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as RC
-import Data.Either (isLeft)
---import Funflow.Tasks.Config (ConfigTask (FileConfigTask))
-
+import Data.Either (isLeft, partitionEithers)
+import Data.HashMap.Strict (member)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
-import Data.Maybe (mapMaybe)
 import qualified Data.Map.Lazy as Map
+import Data.Maybe (mapMaybe)
 import Data.Profunctor.Trans (Reader, Writer, reading, runWriter, writing)
 import Data.Set (fromList)
 import Data.String (IsString (fromString))
@@ -62,7 +61,7 @@ import Docker.API.Client
     saveContainerArchive,
     workingDir,
   )
-import Funflow.Config (ConfigKey, ConfigMap, Configurable (Literal), ExternalConfig (..), configId, readEnv, readYamlFileConfig, render)
+import Funflow.Config (ConfigIdsBySource (..), ConfigKey, ConfigMap, Configurable (..), ExternalConfig (..), configId, configIdBySource, readEnv, readEnvs, readYamlFileConfig, render)
 import Funflow.Flow (RequiredCore, RequiredStrands)
 import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
@@ -89,8 +88,8 @@ import System.PosixCompat.User (getEffectiveGroupID, getEffectiveUserID)
 -- | Flow execution configuration
 data RunFlowConfig = RunFlowConfig
   { storePath :: Path Abs Dir,
-    -- Optional config file for configuring tasks
-    configFile :: Maybe (Path Abs File) -- Does this need to be an absolute path?
+    -- Optional config file for configuring task arguments
+    configFile :: Maybe (Path Abs File)
   }
 
 -- | Run a flow
@@ -124,29 +123,30 @@ runFlowWithConfig config flow input =
                 & untwine
 
             -- Extract all required external configs and docker images from DockerTasks
-            ((dockerConfigs :: HashSet.HashSet T.Text, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
-
-            wipPlaceholders = HashMap.fromList [("python.command", YAML.String "print(\"this came from a config!\")")] :: YAML.Object
+            -- TODO [Dorran] - It would be better to have more of an API for collecting these keys for when
+            -- we end up with multiple task types which need to be configured.
+            ((dockerConfigs :: ConfigIdsBySource, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
 
         -- Run IO Actions to read config file, env vars, etc:
         fConf <- case configFile of
           Nothing -> return HashMap.empty
           Just path -> readYamlFileConfig $ toFilePath path
+        eConf <- readEnvs $ HashSet.toList $ envConfigIds dockerConfigs
 
-        -- Feed external config into tasks which use config:
-        let externalConfig = ExternalConfig {fileConfig = fConf, envConfig = HashMap.fromList [], cliConfig = wipPlaceholders}
+        let -- Feed external config into tasks which use config. Currently this is only DockerTasks
+            externalConfig = ExternalConfig {fileConfig = fConf, envConfig = eConf, cliConfig = HashMap.empty}
+
+            -- TODO: Assert that all of our configs exist here
             weavePipeline' = runReader externalConfig pipelineWithDockerConfigReader
             -- Run the reader layer for caching
             -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
             core = runReader (localStoreWithId store defaultCachingId) weavePipeline'
 
-        print $ "HELLO! The configs are: " ++ (show dockerConfigs)
-        -- Perform some IO to extract our configuration
-        -- fileConfigMap <- decodeFileThrow "my-config.yaml"
-        -- envConfigMap <- readFromEnv envConfigs
-        -- cliConfigMap <- readFromCLI CLIConfigs
-        -- merged = throwIfInvalidType mCombine [fileConfigMap, envConfigMap, cliConfigMap]
-        -- selected = filterConfigToRequested merged
+        -- -- Load-time pre-processing goes here:
+        -- -- Check that all required configs were found
+        -- case assertConfigsExist externalConfig dockerConfigs of
+        --   Left missingConfs -> throwString $ show missingConfs
+        --   Right _ -> mempty :: IO ()
 
         -- Pull docker images if there's any
         if length dockerImages > 0
@@ -218,79 +218,79 @@ interpretDockerTask ::
   Manager ->
   CS.ContentStore ->
   DockerTask i o ->
-  (Writer (HashSet.HashSet T.Text, [T.Text]) ~> (Reader ExternalConfig ~> core)) i o
+  (Writer (ConfigIdsBySource, [T.Text]) ~> (Reader ExternalConfig ~> core)) i o
 interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.command, DE.args})) =
   -- TODO: It would be cleaner if we could make configurable fields have a type class which
   -- implements something like `isConfigurable` below
-  let requiredConfigs = mapMaybe getIdFromArg $ DE.args DockerTaskConfig {DE.image, DE.command, DE.args}
+  let requiredConfigs = mconcat $ mapMaybe getIdFromArg args
    in -- Add the image to the list of docker images stored in the Cayley Writer [T.Text]
       --writing (HashSet.fromList ["foo", "bar"]) $
-      writing (HashSet.fromList requiredConfigs, [image]) $
+      writing (requiredConfigs, [image]) $
         reading $ \externalConfig ->
-          liftKleisliIO $ \(DockerTaskInput {DE.inputBindings, DE.argsVals}) ->
-            let renderedWithConfig = map (renderArg externalConfig) $ DE.args DockerTaskConfig {DE.image, DE.command, DE.args}
-                -- Check args placeholder fullfillment, right is value, left is unfullfilled label
-                argsFilled =
-                  [ ( case arg of
-                        Left configError -> Left configError
-                        Right a -> case a of
-                          Arg configValue -> case configValue of
-                            Literal value -> Right value
-                            _ -> error "Kaboom! interpretDockerTask encountered an unrendered externally configurable value which should never happen."
-                          Placeholder label ->
-                            let maybeVal = Map.lookup label argsVals
-                             in case maybeVal of
-                                  Nothing -> Left $ "Unfilled label" ++ label
-                                  Just val -> Right val
-                    )
-                    | arg <- renderedWithConfig
-                  ]
-             in -- Error if one of the required configs or arg labels are not filled
-                if any isLeft argsFilled
-                  then
-                    let labelAndConfigErrors = [errMsg | (Left errMsg) <- argsFilled]
-                     in throwString $ "Docker task failed with configuration errors: " ++ show labelAndConfigErrors
-                  else do
-                    let argsFilledChecked = [argVal | (Right argVal) <- argsFilled]
-                    uid <- getEffectiveUserID
-                    gid <- getEffectiveGroupID
-                    let -- @defaultWorkingDirName@ has been chosen arbitrarly, it is both where Docker container will execute things, but also the exported folder to the content store
-                        defaultWorkingDirName = "workdir"
-                        defaultContainerWorkingDirPath = "/" ++ defaultWorkingDirName
-                        container =
-                          (defaultContainerSpec image)
-                            { workingDir = T.pack defaultContainerWorkingDirPath,
-                              cmd = [command] <> argsFilledChecked,
-                              -- ":ro" suffix on docker binding means "read-only", the mounted volumes from the content store will not be modified
-                              hostVolumes = map fromString [(toFilePath $ CS.itemPath store item) <> ":" <> (toFilePath mount) <> ":ro" | VolumeBinding {DE.item, DE.mount} <- inputBindings]
-                            }
-                    -- Run the docker container
-                    runDockerResult <- runExceptT $ do
-                      containerId <- runContainer manager container
-                      awaitContainer manager containerId
-                      return containerId
-                    -- Process the result of the docker computation
-                    case runDockerResult of
-                      Left ex -> throw ex
-                      Right containerId ->
-                        let -- Define behaviors to pass to @CS.putInStore@
-                            handleError hash = throwString $ "Could not put in store item " ++ show hash
-                            copyDockerContainer itemPath _ = do
-                              copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultContainerWorkingDirPath (toFilePath itemPath) containerId
-                              case copyResult of
-                                Left ex -> throw ex
-                                Right _ -> do
-                                  -- Since docker will extract a TAR file of the container content, it creates a directory named after the requested directory's name
-                                  -- In order to improve the user experience, funflow moves the content of said directory to the level of the CAS item directory
-                                  itemWorkdir <- (itemPath </>) <$> (parseRelDir defaultWorkingDirName)
-                                  moveDirectoryContent itemWorkdir itemPath
-                                  -- After moving files and directories to item directory, remove the directory named after the working directory
-                                  removeDirectory $ toFilePath itemWorkdir
-                         in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, containerId, runDockerResult)
+          let (configErrors, renderedWithConfig) = partitionEithers $ map (renderArg externalConfig) args
+           in if not $ null configErrors
+                then error $ show configErrors
+                else liftKleisliIO $ \(DockerTaskInput {DE.inputBindings, DE.argsVals}) ->
+                  -- Check args placeholder fullfillment, right is value, left is unfullfilled label
+                  let argsFilled =
+                        [ ( case arg of
+                              Arg configValue -> case configValue of
+                                Literal value -> Right value
+                                _ -> error "Kaboom! interpretDockerTask encountered an unrendered externally configurable value which should never happen."
+                              Placeholder label ->
+                                let maybeVal = Map.lookup label argsVals
+                                 in case maybeVal of
+                                      Nothing -> Left $ "Unfilled label" ++ label
+                                      Just val -> Right val
+                          )
+                          | arg <- renderedWithConfig
+                        ]
+                   in -- Error if one of the required configs or arg labels are not filled
+                      if any isLeft argsFilled
+                        then
+                          let labelAndConfigErrors = [errMsg | (Left errMsg) <- argsFilled]
+                           in throwString $ "Docker task failed with configuration errors: " ++ show labelAndConfigErrors
+                        else do
+                          let argsFilledChecked = [argVal | (Right argVal) <- argsFilled]
+                          uid <- getEffectiveUserID
+                          gid <- getEffectiveGroupID
+                          let -- @defaultWorkingDirName@ has been chosen arbitrarly, it is both where Docker container will execute things, but also the exported folder to the content store
+                              defaultWorkingDirName = "workdir"
+                              defaultContainerWorkingDirPath = "/" ++ defaultWorkingDirName
+                              container =
+                                (defaultContainerSpec image)
+                                  { workingDir = T.pack defaultContainerWorkingDirPath,
+                                    cmd = [command] <> argsFilledChecked,
+                                    -- ":ro" suffix on docker binding means "read-only", the mounted volumes from the content store will not be modified
+                                    hostVolumes = map fromString [(toFilePath $ CS.itemPath store item) <> ":" <> (toFilePath mount) <> ":ro" | VolumeBinding {DE.item, DE.mount} <- inputBindings]
+                                  }
+                          -- Run the docker container
+                          runDockerResult <- runExceptT $ do
+                            containerId <- runContainer manager container
+                            awaitContainer manager containerId
+                            return containerId
+                          -- Process the result of the docker computation
+                          case runDockerResult of
+                            Left ex -> throw ex
+                            Right containerId ->
+                              let -- Define behaviors to pass to @CS.putInStore@
+                                  handleError hash = throwString $ "Could not put in store item " ++ show hash
+                                  copyDockerContainer itemPath _ = do
+                                    copyResult <- runExceptT $ saveContainerArchive manager uid gid defaultContainerWorkingDirPath (toFilePath itemPath) containerId
+                                    case copyResult of
+                                      Left ex -> throw ex
+                                      Right _ -> do
+                                        -- Since docker will extract a TAR file of the container content, it creates a directory named after the requested directory's name
+                                        -- In order to improve the user experience, funflow moves the content of said directory to the level of the CAS item directory
+                                        itemWorkdir <- (itemPath </>) <$> (parseRelDir defaultWorkingDirName)
+                                        moveDirectoryContent itemWorkdir itemPath
+                                        -- After moving files and directories to item directory, remove the directory named after the working directory
+                                        removeDirectory $ toFilePath itemWorkdir
+                               in CS.putInStore store RC.NoCache handleError copyDockerContainer (container, containerId, runDockerResult)
   where
-    getIdFromArg :: Arg -> Maybe ConfigKey
+    getIdFromArg :: Arg -> Maybe ConfigIdsBySource
     getIdFromArg arg = case arg of
-      Arg configurable -> configId configurable
+      Arg configurable -> Just $ configIdBySource configurable
       _ -> Nothing
 
     renderArg :: ExternalConfig -> Arg -> Either String Arg

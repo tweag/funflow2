@@ -1,5 +1,6 @@
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -11,11 +12,15 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString as B
 import Data.ByteString.UTF8 as BSU
 import qualified Data.HashMap.Strict as HashMap
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import Data.Maybe (mapMaybe)
 import qualified Data.Scientific as SC
 import Data.Text (Text, pack, unpack)
 import Data.Yaml (FromJSON, Object, ParseException, Value, decodeEither, decodeEither', decodeFileThrow, decodeThrow, encode, object, parseEither, prettyPrintParseException, (.:))
 import qualified Data.Yaml as YAML
+import GHC.Generics (Generic)
+import Generics.Deriving.Monoid
 import System.Environment (lookupEnv)
 
 type ConfigKey = Text
@@ -53,14 +58,14 @@ render configVal extConfig = case configVal of
   where
     valueFromStrings :: FromJSON a => Text -> EnvConfigMap -> Either String a
     valueFromStrings k env = case HashMap.lookup k env of
-      Nothing -> Left $ "Failed to find key '" ++ unpack k ++ "' in provided environment variables"
+      Nothing -> Left $ "Failed to find key '" ++ unpack k ++ "' in provided config."
       Just v -> case (decodeEither' $ BSU.fromString v) :: Either ParseException a of
         Left parseException -> Left $ prettyPrintParseException parseException
         Right parseResult -> Right parseResult
 
     valueFromObject :: FromJSON a => Text -> Object -> Either String a
     valueFromObject k obj = case HashMap.lookup k obj of
-      Nothing -> Left $ "Failed to find key '" ++ unpack k ++ "' in provided file config"
+      Nothing -> Left $ "Failed to find key '" ++ unpack k ++ "' in provided config."
       Just v -> case (decodeEither' $ encode v) :: Either ParseException a of
         Left parseException -> Left $ prettyPrintParseException parseException
         Right parseResult -> Right parseResult
@@ -78,12 +83,70 @@ configId conf = case conf of
   FromCLI k -> Just k
   Literal _ -> Nothing
 
+data ConfigIdsBySource = ConfigIdsBySource
+  { fileConfigIds :: HashSet Text,
+    envConfigIds :: HashSet Text,
+    cliConfigIds :: HashSet Text
+  }
+  deriving (Show)
+
+instance Semigroup ConfigIdsBySource where
+  (<>) m1 m2 =
+    ConfigIdsBySource
+      { fileConfigIds = fileConfigIds m1 <> fileConfigIds m2,
+        envConfigIds = envConfigIds m1 <> envConfigIds m2,
+        cliConfigIds = cliConfigIds m1 <> cliConfigIds m2
+      }
+
+instance Monoid ConfigIdsBySource where
+  mempty =
+    ConfigIdsBySource
+      { fileConfigIds = HashSet.empty,
+        envConfigIds = HashSet.empty,
+        cliConfigIds = HashSet.empty
+      }
+
+configIdBySource :: Configurable a -> ConfigIdsBySource
+configIdBySource conf = case conf of
+  FromFile k ->
+    ConfigIdsBySource
+      { fileConfigIds = HashSet.fromList [k],
+        envConfigIds = HashSet.empty,
+        cliConfigIds = HashSet.empty
+      }
+  FromEnv k ->
+    ConfigIdsBySource
+      { fileConfigIds = HashSet.empty,
+        envConfigIds = HashSet.fromList [k],
+        cliConfigIds = HashSet.empty
+      }
+  FromCLI k ->
+    ConfigIdsBySource
+      { fileConfigIds = HashSet.empty,
+        envConfigIds = HashSet.empty,
+        cliConfigIds = HashSet.fromList [k]
+      }
+  _ ->
+    ConfigIdsBySource
+      { fileConfigIds = HashSet.empty,
+        envConfigIds = HashSet.empty,
+        cliConfigIds = HashSet.empty
+      }
+
+missing :: ExternalConfig -> ConfigIdsBySource -> Maybe [ConfigKey]
+missing conf ids =
+  let missingFileConfs = filter (not . (flip HashMap.member $ fileConfig conf)) $ HashSet.toList $ envConfigIds ids
+      missingEnvConfs = filter (not . (flip HashMap.member $ envConfig conf)) $ HashSet.toList $ fileConfigIds ids
+      missingCLIConfs = filter (not . (flip HashMap.member $ cliConfig conf)) $ HashSet.toList $ cliConfigIds ids
+      missingConfs = missingFileConfs ++ missingEnvConfs ++ missingCLIConfs
+   in case missingConfs of
+        [] -> Nothing
+        _ -> Just missingConfs
+
 -- | Helper for getting a required config keys from a list
 -- of configurable values of the same type.
 configIds :: [Configurable a] -> [ConfigKey]
 configIds = mapMaybe configId
-
--- TODO config file, env, and cli read functions
 
 -- | Construct an `Object` from an environment variable. This
 -- will have a default type which will need to get converted to
@@ -94,6 +157,11 @@ readEnv key = do
   case val of
     Nothing -> return HashMap.empty
     Just v -> return $ HashMap.fromList [(key, v)]
+
+readEnvs :: MonadIO m => [ConfigKey] -> m (HashMap.HashMap Text String)
+readEnvs keys = do
+  envVars <- mapM readEnv keys
+  return $ mconcat envVars
 
 -- | Alias for `decodeFileThrow`
 readYamlFileConfig :: (MonadIO m, FromJSON a) => FilePath -> m a

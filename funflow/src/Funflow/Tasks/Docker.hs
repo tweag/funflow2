@@ -39,6 +39,10 @@ data Arg
   | -- | A placeholder for an argument to be passed as runtime input to the task (filled by @argsVals@)
     Placeholder String
 
+-- TODO: Validate that this works
+instance IsString Arg where
+  fromString s = Arg $ Literal $ T.pack s -- Maybe needs a T.pack
+
 -- | Input to a Docker task to finalize its configuration
 data DockerTaskInput = DockerTaskInput
   { -- | Input items to mount on the container
