@@ -28,7 +28,6 @@ dependencies:
   - path
   - path-io
   - safe-exceptions
-  - scientific
   - store
   - text
   - unix-compat

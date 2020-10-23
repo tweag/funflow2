@@ -39,7 +39,6 @@ import Data.CAS.ContentHashable (DirectoryContent (DirectoryContent))
 import qualified Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as RC
 import Data.Either (isLeft, partitionEithers)
-import Data.HashMap.Strict (member)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
 import qualified Data.Map.Lazy as Map
@@ -48,7 +47,6 @@ import Data.Profunctor.Trans (Reader, Writer, reading, runWriter, writing)
 import Data.Set (fromList)
 import Data.String (IsString (fromString))
 import qualified Data.Text as T
-import Data.Yaml as YAML
 import Docker.API.Client
   ( ContainerSpec (cmd),
     OS (OS),
@@ -61,7 +59,7 @@ import Docker.API.Client
     saveContainerArchive,
     workingDir,
   )
-import Funflow.Config (ConfigIdsBySource (..), ConfigKey, ConfigMap, Configurable (..), ExternalConfig (..), configId, configIdBySource, readEnv, readEnvs, readYamlFileConfig, render)
+import Funflow.Config (ConfigIdsBySource (..), Configurable (..), ExternalConfig (..), configIdBySource, missing, readEnvs, readYamlFileConfig, render)
 import Funflow.Flow (RequiredCore, RequiredStrands)
 import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
@@ -112,44 +110,50 @@ runFlowWithConfig config flow input =
 
         let -- Weave all strands
             weavedPipeline =
-              -- TODO: Prepend a config stage here?
               flow
                 -- Weave tasks
-                -- TODO: Maybe add an interpretation step for config here
                 & weave' #docker (interpretDockerTask manager store)
                 & weave' #store (interpretStoreTask store)
                 & weave' #simple interpretSimpleTask
                 -- Strip of empty list of strands (after all weaves)
                 & untwine
 
+            -- At this point, the pipeline core is still wrapper in a couple of reader/writer layers.
+
             -- Extract all required external configs and docker images from DockerTasks
-            -- TODO [Dorran] - It would be better to have more of an API for collecting these keys for when
-            -- we end up with multiple task types which need to be configured.
             ((dockerConfigs :: ConfigIdsBySource, dockerImages :: [T.Text]), pipelineWithDockerConfigReader) = runWriter weavedPipeline
+            -- Finally, combine all config keys. You can plug in additional config keys from new task types here.
+            requiredConfigs = mconcat [dockerConfigs]
 
         -- Run IO Actions to read config file, env vars, etc:
         fConf <- case configFile of
           Nothing -> return HashMap.empty
           Just path -> readYamlFileConfig $ toFilePath path
         eConf <- readEnvs $ HashSet.toList $ envConfigIds dockerConfigs
+        -- TODO: Support for configurations via a CLI.
+        let externalConfig = ExternalConfig {fileConfig = fConf, envConfig = eConf, cliConfig = HashMap.empty}
+            missingConfigs = missing externalConfig requiredConfigs
 
-        let -- Feed external config into tasks which use config. Currently this is only DockerTasks
-            externalConfig = ExternalConfig {fileConfig = fConf, envConfig = eConf, cliConfig = HashMap.empty}
+        -- At load-time, ensure that all expected configurations could be found.
+        if not $ null missingConfigs
+          then throwString $ "Missing the following required config keys: " ++ show missingConfigs
+          else mempty :: IO ()
 
-            -- TODO: Assert that all of our configs exist here
-            weavePipeline' = runReader externalConfig pipelineWithDockerConfigReader
+        -- Now, we can pass in configuration values to tasks which depend on them
+        -- via a Reader layer.
+        let -- Run reader layer for DockerTask configs and write out a list of any configuration error messages.
+            (configErrors, weavePipeline') = runWriter $ runReader externalConfig pipelineWithDockerConfigReader
             -- Run the reader layer for caching
             -- The `Just n` is a number that is used to compute caching hashes, changing it will recompute all
             core = runReader (localStoreWithId store defaultCachingId) weavePipeline'
 
-        -- -- Load-time pre-processing goes here:
-        -- -- Check that all required configs were found
-        -- case assertConfigsExist externalConfig dockerConfigs of
-        --   Left missingConfs -> throwString $ show missingConfs
-        --   Right _ -> mempty :: IO ()
+        -- If there were any additional configuration errors during interpretation, raise an exception.
+        if not $ null configErrors
+          then throwString $ "Configuration failed with errors: " ++ show configErrors
+          else mempty :: IO ()
 
         -- Pull docker images if there's any
-        if length dockerImages > 0
+        if not $ null dockerImages
           then do
             putStrLn "Found docker images, pulling..."
             let -- Remove duplicates by converting to a list
@@ -218,25 +222,23 @@ interpretDockerTask ::
   Manager ->
   CS.ContentStore ->
   DockerTask i o ->
-  (Writer (ConfigIdsBySource, [T.Text]) ~> (Reader ExternalConfig ~> core)) i o
+  (Writer (ConfigIdsBySource, [T.Text]) ~> Reader ExternalConfig ~> Writer [String] ~> core) i o
 interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.command, DE.args})) =
-  -- TODO: It would be cleaner if we could make configurable fields have a type class which
-  -- implements something like `isConfigurable` below
   let requiredConfigs = mconcat $ mapMaybe getIdFromArg args
    in -- Add the image to the list of docker images stored in the Cayley Writer [T.Text]
-      --writing (HashSet.fromList ["foo", "bar"]) $
       writing (requiredConfigs, [image]) $
+        -- Read external configuration values and use them to populate the task's config
         reading $ \externalConfig ->
           let (configErrors, renderedWithConfig) = partitionEithers $ map (renderArg externalConfig) args
-           in if not $ null configErrors
-                then error $ show configErrors
-                else liftKleisliIO $ \(DockerTaskInput {DE.inputBindings, DE.argsVals}) ->
+           in -- Write any errors encountered during rendering of config so they can be thrown later
+              writing configErrors $
+                liftKleisliIO $ \(DockerTaskInput {DE.inputBindings, DE.argsVals}) ->
                   -- Check args placeholder fullfillment, right is value, left is unfullfilled label
                   let argsFilled =
                         [ ( case arg of
                               Arg configValue -> case configValue of
                                 Literal value -> Right value
-                                _ -> error "Kaboom! interpretDockerTask encountered an unrendered externally configurable value which should never happen."
+                                _ -> error "interpretDockerTask encountered an unrendered externally configurable value, which should never happen."
                               Placeholder label ->
                                 let maybeVal = Map.lookup label argsVals
                                  in case maybeVal of

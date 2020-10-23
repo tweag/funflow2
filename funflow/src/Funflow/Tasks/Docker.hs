@@ -14,12 +14,10 @@ where
 
 import Data.CAS.ContentStore as CS
 import Data.Map (Map)
-import Data.HashMap.Strict ((!))
 import Data.String (IsString, fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Yaml (Object, Parser, parseMaybe, (.:))
-import Funflow.Config (ConfigMap, Configurable (..), configIds, render)
+import Funflow.Config (Configurable (Literal))
 import Path (Abs, Dir, Path)
 
 -- | Configure what task to run in Docker

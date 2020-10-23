@@ -1,26 +1,17 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Funflow.Config where
 
-import Control.Exception (Exception)
-import Control.Exception.Safe (throwString)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import qualified Data.ByteString as B
 import Data.ByteString.UTF8 as BSU
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
-import Data.Maybe (mapMaybe)
-import qualified Data.Scientific as SC
-import Data.Text (Text, pack, unpack)
-import Data.Yaml (FromJSON, Object, ParseException, Value, decodeEither, decodeEither', decodeFileThrow, decodeThrow, encode, object, parseEither, prettyPrintParseException, (.:))
-import qualified Data.Yaml as YAML
-import GHC.Generics (Generic)
-import Generics.Deriving.Monoid
+import Data.Text (Text, unpack)
+import Data.Yaml (FromJSON, Object, ParseException, decodeEither', decodeFileThrow, encode, prettyPrintParseException)
 import System.Environment (lookupEnv)
 
 type ConfigKey = Text
@@ -75,6 +66,10 @@ render configVal extConfig = case configVal of
       Left err -> Left $ "Failed to extract configurable " ++ unpack configKey ++ " from " ++ fromConfigName ++ " with error: " ++ err
       Right result -> Right $ Literal result
 
+---------------------------------------------------------------------
+-- Functions for gathering and filtering config keys
+---------------------------------------------------------------------
+
 -- | Gets the config key for a configurable value, if it exists.
 configId :: Configurable a -> Maybe ConfigKey
 configId conf = case conf of
@@ -83,12 +78,16 @@ configId conf = case conf of
   FromCLI k -> Just k
   Literal _ -> Nothing
 
+-- | Stores ConfigKey values by their declared sources.
 data ConfigIdsBySource = ConfigIdsBySource
   { fileConfigIds :: HashSet Text,
     envConfigIds :: HashSet Text,
     cliConfigIds :: HashSet Text
   }
   deriving (Show)
+
+-- Note: Making ConfigKeysBySource a Monoid to make them easier to combine
+-- in Funflow.Run.
 
 instance Semigroup ConfigIdsBySource where
   (<>) m1 m2 =
@@ -106,6 +105,7 @@ instance Monoid ConfigIdsBySource where
         cliConfigIds = HashSet.empty
       }
 
+-- | Get the key of a `Configurable` as a `ConfigKeysBySource`.
 configIdBySource :: Configurable a -> ConfigIdsBySource
 configIdBySource conf = case conf of
   FromFile k ->
@@ -133,24 +133,20 @@ configIdBySource conf = case conf of
         cliConfigIds = HashSet.empty
       }
 
-missing :: ExternalConfig -> ConfigIdsBySource -> Maybe [ConfigKey]
+-- | Get a list of any ConfigKeys which don't exist in their corresponding
+-- field in the providedExternalConfig
+missing :: ExternalConfig -> ConfigIdsBySource -> [ConfigKey]
 missing conf ids =
-  let missingFileConfs = filter (not . (flip HashMap.member $ fileConfig conf)) $ HashSet.toList $ envConfigIds ids
-      missingEnvConfs = filter (not . (flip HashMap.member $ envConfig conf)) $ HashSet.toList $ fileConfigIds ids
+  let missingFileConfs = filter (not . (flip HashMap.member $ fileConfig conf)) $ HashSet.toList $ fileConfigIds ids
+      missingEnvConfs = filter (not . (flip HashMap.member $ envConfig conf)) $ HashSet.toList $ envConfigIds ids
       missingCLIConfs = filter (not . (flip HashMap.member $ cliConfig conf)) $ HashSet.toList $ cliConfigIds ids
-      missingConfs = missingFileConfs ++ missingEnvConfs ++ missingCLIConfs
-   in case missingConfs of
-        [] -> Nothing
-        _ -> Just missingConfs
+   in missingFileConfs ++ missingEnvConfs ++ missingCLIConfs
 
--- | Helper for getting a required config keys from a list
--- of configurable values of the same type.
-configIds :: [Configurable a] -> [ConfigKey]
-configIds = mapMaybe configId
+---------------------------------------------------------------------
+-- IO actions which return configs
+---------------------------------------------------------------------
 
--- | Construct an `Object` from an environment variable. This
--- will have a default type which will need to get converted to
--- the requested config type during the render method.
+-- | Construct an HashMap containing specified environment variable values.
 readEnv :: MonadIO m => ConfigKey -> m (HashMap.HashMap Text String)
 readEnv key = do
   val <- liftIO $ lookupEnv $ unpack key
@@ -158,11 +154,12 @@ readEnv key = do
     Nothing -> return HashMap.empty
     Just v -> return $ HashMap.fromList [(key, v)]
 
+-- | Convenience function for calling readEnv on a list of ConfigKeys
 readEnvs :: MonadIO m => [ConfigKey] -> m (HashMap.HashMap Text String)
 readEnvs keys = do
   envVars <- mapM readEnv keys
   return $ mconcat envVars
 
--- | Alias for `decodeFileThrow`
+-- | Construct a HashMap containing the content of a yaml file. Is just an Alias for `decodeFileThrow`.
 readYamlFileConfig :: (MonadIO m, FromJSON a) => FilePath -> m a
 readYamlFileConfig = decodeFileThrow
