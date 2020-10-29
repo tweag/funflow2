@@ -18,6 +18,14 @@ import System.Environment (lookupEnv)
 -- text anyways.
 type ConfigKey = Text
 
+-- Note: EnvConfigMap and ConfigMap have different types since
+-- environment variables are expected to only contain a single
+-- config value, while file config maps are expected to contain a tree
+-- of values (since they are coming from a YAML file). Config coming from
+-- a config file needs to get parsed using the default FromJSON parser when
+-- initially being read in order to identify which config keys are defined in
+-- the file and therefore is of type Object.
+
 type ConfigMap = Object
 
 type EnvConfigMap = HashMap.HashMap Text String
@@ -32,11 +40,11 @@ data ExternalConfig = ExternalConfig
 -- | A value which is intended to be populated using an external source (e.g. a config file)
 data Configurable a where
   -- | Define a configurable which will be loaded from a config file using the given key
-  FromFile :: FromJSON a => ConfigKey -> Configurable a
+  ConfigFromFile :: FromJSON a => ConfigKey -> Configurable a
   -- | Define a configurable which will be loaded from the specified environment variable
-  FromEnv :: FromJSON a => ConfigKey -> Configurable a
+  ConfigFromEnv :: FromJSON a => ConfigKey -> Configurable a
   -- | Define a configurable which will be loaded from the specified command line option
-  FromCLI :: FromJSON a => ConfigKey -> Configurable a
+  ConfigFromCLI :: FromJSON a => ConfigKey -> Configurable a
   -- | A literal value which does not need to be loaded from an external config source
   Literal :: a -> Configurable a
 
@@ -47,9 +55,9 @@ data Configurable a where
 -- an error message if rendering failed.
 render :: forall a. Configurable a -> ExternalConfig -> Either String (Configurable a)
 render configVal extConfig = case configVal of
-  FromFile key -> appendErrorContext key "config file" $ valueFromObject key $ fileConfig extConfig
-  FromEnv key -> appendErrorContext key "environment variable" $ valueFromStrings key $ envConfig extConfig
-  FromCLI key -> appendErrorContext key "CLI args" $ valueFromObject key $ cliConfig extConfig
+  ConfigFromFile key -> appendErrorContext key "config file" $ valueFromObject key $ fileConfig extConfig
+  ConfigFromEnv key -> appendErrorContext key "environment variable" $ valueFromStrings key $ envConfig extConfig
+  ConfigFromCLI key -> appendErrorContext key "CLI args" $ valueFromObject key $ cliConfig extConfig
   Literal _ -> Right configVal
   where
     valueFromStrings :: FromJSON a => Text -> EnvConfigMap -> Either String a
@@ -78,9 +86,9 @@ render configVal extConfig = case configVal of
 -- | Gets the config key for a configurable value, if it exists.
 getConfigKey :: Configurable a -> Maybe ConfigKey
 getConfigKey conf = case conf of
-  FromFile k -> Just k
-  FromEnv k -> Just k
-  FromCLI k -> Just k
+  ConfigFromFile k -> Just k
+  ConfigFromEnv k -> Just k
+  ConfigFromCLI k -> Just k
   Literal _ -> Nothing
 
 -- | Stores ConfigKey values by their declared sources.
@@ -113,30 +121,25 @@ instance Monoid ConfigKeysBySource where
 -- | Get the key of a `Configurable` as a `ConfigKeysBySource`.
 configKeyBySource :: Configurable a -> ConfigKeysBySource
 configKeyBySource conf = case conf of
-  FromFile k ->
+  ConfigFromFile k ->
     ConfigKeysBySource
       { fileConfigKeys = HashSet.fromList [k],
         envConfigKeys = HashSet.empty,
         cliConfigKeys = HashSet.empty
       }
-  FromEnv k ->
+  ConfigFromEnv k ->
     ConfigKeysBySource
       { fileConfigKeys = HashSet.empty,
         envConfigKeys = HashSet.fromList [k],
         cliConfigKeys = HashSet.empty
       }
-  FromCLI k ->
+  ConfigFromCLI k ->
     ConfigKeysBySource
       { fileConfigKeys = HashSet.empty,
         envConfigKeys = HashSet.empty,
         cliConfigKeys = HashSet.fromList [k]
       }
-  _ ->
-    ConfigKeysBySource
-      { fileConfigKeys = HashSet.empty,
-        envConfigKeys = HashSet.empty,
-        cliConfigKeys = HashSet.empty
-      }
+  _ -> mempty
 
 -- | Get a list of any ConfigKeys which don't exist in their corresponding
 -- field in the providedExternalConfig

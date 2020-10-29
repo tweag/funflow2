@@ -21,7 +21,7 @@ import Funflow
     runFlowWithConfig,
     tryE,
   )
-import Funflow.Config (Configurable (FromEnv, FromFile, Literal))
+import Funflow.Config (Configurable (ConfigFromEnv, ConfigFromFile, Literal))
 import Funflow.Tasks.Docker (Arg, DockerTaskConfig (DockerTaskConfig), DockerTaskInput (DockerTaskInput), VolumeBinding (VolumeBinding))
 import qualified Funflow.Tasks.Docker as DE
 import Path (Abs, Dir, Rel, absdir, parseAbsDir, reldir, relfile, (</>))
@@ -95,11 +95,11 @@ someDockerFlow = proc () -> do
 
 someDockerFlowWithFileConfig :: Flow () CS.Item
 someDockerFlowWithFileConfig = proc () -> do
-  dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["-c", DE.Arg $ FromFile "python.command"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
+  dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["-c", DE.Arg $ ConfigFromFile "python.command"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
 
 someDockerFlowWithEnvConfig :: Flow () CS.Item
 someDockerFlowWithEnvConfig = proc () -> do
-  dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["-c", DE.Arg $ FromEnv "FUNFLOW_TEST"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
+  dockerFlow (DockerTaskConfig {DE.image = "python:latest", DE.command = "python", DE.args = ["-c", DE.Arg $ ConfigFromEnv "FUNFLOW_TEST"]}) -< DockerTaskInput {DE.inputBindings = [], DE.argsVals = mempty}
 
 someDockerFlowWithInputs :: Flow () CS.Item
 someDockerFlowWithInputs = proc () -> do

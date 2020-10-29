@@ -9,6 +9,8 @@ module Funflow.Tasks.Docker
     DockerTaskInput (..),
     VolumeBinding (..),
     Arg (..),
+    renderArg,
+    getIdFromArg,
   )
 where
 
@@ -17,7 +19,7 @@ import Data.Map (Map)
 import Data.String (IsString, fromString)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Funflow.Config (Configurable (Literal))
+import Funflow.Config (ConfigKeysBySource, Configurable (Literal), ExternalConfig, configKeyBySource, render)
 import Path (Abs, Dir, Path)
 
 -- | Configure what task to run in Docker
@@ -37,9 +39,22 @@ data Arg
   | -- | A placeholder for an argument to be passed as runtime input to the task (filled by @argsVals@)
     Placeholder String
 
--- TODO: Validate that this works
 instance IsString Arg where
-  fromString s = Arg $ Literal $ T.pack s -- Maybe needs a T.pack
+  fromString s = Arg $ Literal $ T.pack s
+
+-- | Extracts a ConfigKey from an Arg, if it exists.
+getIdFromArg :: Arg -> Maybe ConfigKeysBySource
+getIdFromArg arg = case arg of
+  Arg configurable -> Just $ configKeyBySource configurable
+  _ -> Nothing
+
+-- | Renders an Arg with external configurations
+renderArg :: ExternalConfig -> Arg -> Either String Arg
+renderArg external arg = case arg of
+  Arg configurable -> case render configurable external of
+    Left err -> Left err
+    Right renderedConfig -> Right $ Arg renderedConfig
+  _ -> Right arg
 
 -- | Input to a Docker task to finalize its configuration
 data DockerTaskInput = DockerTaskInput
