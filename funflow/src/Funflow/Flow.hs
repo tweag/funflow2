@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE InstanceSigs #-}
 {-# LANGUAGE NamedFieldPuns #-}
@@ -7,8 +8,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
-
--- {-# LANGUAGE FlexibleContexts #-}
 
 module Funflow.Flow
   ( Flow,
@@ -26,19 +25,6 @@ module Funflow.Flow
     returnFlow,
   )
 where
-
--- <<<<<<< HEAD
--- import Control.Arrow (Arrow, ArrowChoice)
--- import Control.Kernmantle.Caching (ProvidesCaching, StoreWithId (StoreWithId), usingStore)
--- import Control.Kernmantle.Error (MonadMask)
--- import Control.Kernmantle.Parallel (PKleisli)
--- import Control.Kernmantle.Rope (AnyRopeWith, HasKleisli, Reader, mapReader_, mapSieve, strand, type (~>))
--- import Control.Monad.IO.Class (MonadIO)
--- import Data.CAS.ContentStore as CS
--- import Funflow.Effects.Docker (DockerEffect (..), DockerEffectConfig, DockerEffectInput)
--- import qualified Data.CAS.RemoteCache as Remote
--- import Funflow.Effects.Simple (SimpleEffect (..))
--- import UnliftIO (MonadUnliftIO)
 
 import Control.Arrow (Arrow, ArrowChoice, returnA)
 import Control.Exception.Safe (SomeException, StringException, throwString)
@@ -138,27 +124,6 @@ getDirFlow = toFlow GetDir
 -- | Make a flow that throws an exception with a message
 throwStringFlow :: Flow String ()
 throwStringFlow = ioFlow $ \message -> throwString message
-
--- <<<<<<< HEAD
--- dockerFlow :: DockerEffectConfig -> Flow DockerEffectInput CS.Item
--- dockerFlow = toFlow . DockerEffect
-
--- -- Should be pushed to upstream (kernmantle)
--- instance
---   (MonadIO m, MonadUnliftIO m, MonadMask m, Remote.Cacher m remoteCacher) =>
---   ProvidesCaching (Reader (StoreWithId remoteCacher) ~> PKleisli m)
---   where
---   usingStore =
---     mapReader_ $ \(StoreWithId store remoteCacher pipelineId) ->
---       mapSieve $ \act input ->
---         CS.cacheKleisliIO
---           pipelineId
---           (CS.defaultIOCacherWithIdent 1)
---           store
---           remoteCacher
---           act
---           input
--- =======
 
 -- | Return a result at the end of a flow
 returnFlow :: Flow a a
