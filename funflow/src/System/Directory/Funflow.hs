@@ -14,7 +14,6 @@ import System.Directory (copyFile, doesDirectoryExist, doesFileExist, listDirect
 moveDirectoryContent :: Path Abs Dir -> Path Abs Dir -> IO ()
 moveDirectoryContent sourceDirectory targetDirectory =
   do
-    putStrLn $ "Attempting to move " <> (show sourceDirectory) <> " to: " <> (show targetDirectory)
     -- List of directories inside
     dirPaths <-
       -- Get the list of children elements of @directory@
