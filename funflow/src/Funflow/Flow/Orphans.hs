@@ -1,6 +1,6 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeOperators #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 module Funflow.Flow.Orphans where
 
@@ -13,7 +13,7 @@ import Data.CAS.ContentStore as CS
 import qualified Data.CAS.RemoteCache as Remote
 import UnliftIO (MonadUnliftIO)
 
--- Should be pushed to upstream (kernmantle)
+-- TODO: Should be moved upstream to tweag/kernmantle
 instance
   (MonadIO m, MonadUnliftIO m, MonadMask m, Remote.Cacher m remoteCacher) =>
   ProvidesCaching (Reader (StoreWithId remoteCacher) ~> PKleisli m)
