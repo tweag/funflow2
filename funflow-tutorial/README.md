@@ -34,13 +34,12 @@ Here are a few steps and tips to avoid snags as you get started. Note that step 
 
 ### Snags and solutions
 <a name="getting-Nix"></a>
-1. **Getting Nix**: The main instruction provides a command to download with `curl` and then install. If your setup runs aground here, there are [more options](https://nixos.org/download.html#nix-more) to download from the Nix site and then install, including from source. Before trying this option, though, it may be worth a updating/updrading packages. This worked for at least one Tweager, as the attempt to download and install was being made from a fresh Ubuntu 20 installation.
-```console
-apt-get update
-apt-get upgrade
-apt-get install curl
-```
-Use `sudo` as desired/needed.
+1. **Getting Nix**: The main instruction provides a command to download with `curl` and then install. If your setup runs aground here, there are [more options](https://nixos.org/download.html#nix-more) to download from the Nix site and then install, including from source. Before trying this option, though, it may be worth a updating/updrading packages. This worked for at least one Tweager, as the attempt to download and install was being made from a fresh Ubuntu 20 installation. Use `sudo` as desired/needed.
+    ```console
+    apt-get update
+    apt-get upgrade
+    apt-get install curl
+    ```
 2. **Running a notebook**: If you hit a snag starting up and/or running a notebook, check that you've started `nix-shell` from the proper folder, namely the one with this doc.
 
 
