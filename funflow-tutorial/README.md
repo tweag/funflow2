@@ -26,10 +26,11 @@ $ jupyter lab
 ## Setup from scratch
 Here are a few steps and tips to avoid snags as you get started. Note that step 3 onward applies generally, for subsequent use even after installation/setup. Essentially, this section clarifies what to do before [running a notebook](#run-nbs), and what those commands are doing.
 1. **Install Nix**, per the [Nix download page](https://nixos.org/download.html).
-2. **Install `stack`**, per the [Stack website](https://docs.haskellstack.org/en/stable/install_and_upgrade/)
-3. `cd` to the `funflow-tutorial` directory, as there's a `shell.nix` file specifically for this directory.
-4. Fire up a Nix shell: `nix-shell`
-5. Spin up a Jupyter notebook: `jupyter lab`
+2. `cd` to the `funflow-tutorial` directory, as there's a `shell.nix` file specifically for this directory.
+3. Fire up a Nix shell: `nix-shell`
+4. Spin up a Jupyter notebook: `jupyter lab`
+
+**Note**: if you create a fresh notebook to tinker with Funflow, choose `Haskell - haskell` as the notebook kernel if given a choice between that and simply `Haskell`.
 
 ### Snags and solutions
 <a name="getting-Nix"></a>
