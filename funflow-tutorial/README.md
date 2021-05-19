@@ -18,3 +18,7 @@ $ jupyter lab
 The tutorials are written in IPython notebook files in the [notebooks/](./notebooks) directory. Any
 IHaskell notebook stored there will be included with the `funflow` documentation. Tutorials
 with additional supporting files should be placed in a subdirectory, e.g. `notebooks/WordCount/WordCount.ipynb`. 
+
+## Establish Docker
+
+Some tutorials require that Docker is up and running on your machine. Check out the official Docker website for more about [installation](https://docs.docker.com/engine/install/), and perhaps about the [Docker daemon](https://docs.docker.com/config/daemon/).
