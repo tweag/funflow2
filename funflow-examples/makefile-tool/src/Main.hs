@@ -171,8 +171,8 @@ buildTarget storeRoot mkfile target@(MakeRule targetNm deps cmd) = let
        contentSrcFiles <- (ioFlow grabSrcsActions) -< neededSources
       --  compFile <- failNow -< ()
       --  returnA -< compFile
-       --depFiles <- flowJoin [Id{ unId = buildTarget storeRoot mkfile r } | r <- depRules] -< (replicate (length depRules) ()) DEBUG
-       let depFiles = []
+       depFiles <- flowJoin [Id{ unId = buildTarget storeRoot mkfile r } | r <- depRules] -< (replicate (length depRules) ())
+       --let depFiles = [] DEBUG
        let fullSrcFiles = Map.fromList $ zip neededSources contentSrcFiles
        compFile <- (compileFile storeRoot) -< (targetNm, fullSrcFiles, depFiles, cmd)
        returnA -< compFile
@@ -181,29 +181,27 @@ buildTarget storeRoot mkfile target@(MakeRule targetNm deps cmd) = let
 compileFile :: Path Abs Dir -> Flow (TargetFile, Map.Map SourceFile String, [Content File], Command) (Content File)
 compileFile root = proc (tf, srcDeps, tarDeps, cmd) -> do
   relpathCompiledFile <- (ioFlow parseRelFile) -< tf
-  
   -- resDir <- failWith -< ("relpath: " ++ show relpathCompiledFile)
   -- returnA -< resDir
-  
   srcsInStore <- write2Store root -< srcDeps
   let inputFilesInStore = srcsInStore ++ tarDeps
-  resDir <- failWith -< ("srcsInStore: " ++ show inputFilesInStore)
-  returnA -< resDir
-  -- inputDir <- mergeFiles root -< inputFilesInStore
-  -- let scriptSrc = "#!/usr/bin/env bash\n\
-  --                 \cd $1 \n"
-  --                 ++ cmd ++ " -o /output/" ++ tf
-  -- compileScript <- writeExecutableString root -< (scriptSrc, [relfile|script.sh|])
-  -- resDir <- makeFlow -< (inputDir, compileScript)
-  -- returnA -< resDir CS.:</> relpathCompiledFile
-  --   where makeFlow :: Flow (Content Dir, Content File) CS.Item
-  --         makeFlow = ioFlow ( \(indir, compile) -> runFlowWithConfig RunFlowConfig{configFile=Nothing, storePath=root} (dockerFlow (dockerConfig indir compile)) (mempty :: DE.DockerTaskInput) )
-  --         dockerConfig :: Content Dir -> Content File -> DE.DockerTaskConfig
-  --         dockerConfig indir compile = DE.DockerTaskConfig
-  --           { DE.image = "gcc:7.3.0"
-  --           , DE.command = Text.pack . toFilePath $ root </> (CS.contentFilename compile)
-  --           , DE.args = [DE.Arg . Literal . Text.pack . toFilePath $ CS.itemRelPath (CS.contentItem indir)]
-  --           }
+  -- resDir <- failWith -< ("srcsInStore: " ++ show inputFilesInStore)
+  -- returnA -< resDir
+  inputDir <- mergeFiles root -< inputFilesInStore
+  let scriptSrc = "#!/usr/bin/env bash\n\
+                  \cd $1 \n"
+                  ++ cmd ++ " -o /output/" ++ tf
+  compileScript <- writeExecutableString root -< (scriptSrc, [relfile|script.sh|])
+  resDir <- makeFlow -< (inputDir, compileScript)
+  returnA -< resDir CS.:</> relpathCompiledFile
+    where makeFlow :: Flow (Content Dir, Content File) CS.Item
+          makeFlow = ioFlow ( \(indir, compile) -> runFlowWithConfig RunFlowConfig{configFile=Nothing, storePath=root} (dockerFlow (dockerConfig indir compile)) (mempty :: DE.DockerTaskInput) )
+          dockerConfig :: Content Dir -> Content File -> DE.DockerTaskConfig
+          dockerConfig indir compile = DE.DockerTaskConfig
+            { DE.image = "gcc:7.3.0"
+            , DE.command = Text.pack . toFilePath $ root </> (CS.contentFilename compile)
+            , DE.args = [DE.Arg . Literal . Text.pack . toFilePath $ CS.itemRelPath (CS.contentItem indir)]
+            }
 
 -- Note: type SourceFile = String.
 -- Note: TargetFile is the name of the file.
@@ -220,8 +218,8 @@ mergeFiles root = ioFlow (mergeFilesRaw root)
 ioFixSrcFileData :: (FileName, FileContent) -> IO (FileContent, Path Rel File)
 ioFixSrcFileData (x,y) = (\y' -> (y,y')) <$> parseRelFile x
 
-flowFixSrcFileData :: Flow (FileName, FileContent) (FileContent, Path Rel File)
-flowFixSrcFileData = ioFlow ioFixSrcFileData
+-- flowFixSrcFileData :: Flow (FileName, FileContent) (FileContent, Path Rel File)
+-- flowFixSrcFileData = ioFlow ioFixSrcFileData
 
 putInStoreAtRaw ::
   (ContentHashable IO a, Typeable t) =>
@@ -258,11 +256,26 @@ mapA f = arr (maybe (Left ()) Right . uncons) >>> (arr (const []) ||| ((f *** ma
 write1 :: Path Abs Dir -> Flow (String, Path Rel File) (Content File)
 write1 d = putInStoreAt d (writeFile . fromAbsFile)
 
+-- write2Store :: Path Abs Dir -> Flow (Map.Map FileName FileContent) [Content File]
+-- write2Store root = proc files -> do
+--   let fileList = Map.toList files
+--       --n = length fileList
+--   --filesWithPaths <- flowJoin (replicate n flowFixSrcFileData) -< (Map.toList files)
+--   --filesWithPaths <- mapA flowFixSrcFileData -< (Map.toList files)
+--   filesWithPaths <- ioFlow (mapM (\x -> do
+--     y@(fc, p) <- ioFixSrcFileData x
+--     snd <$> putInStoreAtRaw root (writeFile . fromAbsFile) y )) -< fileList
+--   --contents <- mapA (write1 root) -< filesWithPaths
+--   contents <- flowJoin (replicate n (write1 root)) -< filesWithPaths
+--   returnA -< contents
+
 write2Store :: Path Abs Dir -> Flow (Map.Map FileName FileContent) [Content File]
-write2Store root = proc files -> do
-  filesWithPaths <- mapA flowFixSrcFileData -< (Map.toList files)
-  contents <- mapA (write1 root) -< filesWithPaths
-  returnA -< contents
+write2Store root = ioFlow (\files -> 
+  mapM (\x -> do
+    y <- ioFixSrcFileData x
+    (_, z) <- putInStoreAtRaw root (writeFile . fromAbsFile) y
+    return z
+    ) (Map.toList files) )
 
 -- findRules :: MakeFile -> [TargetFile] -> Maybe [MakeRule]
 -- findRules _ _ = Nothing
