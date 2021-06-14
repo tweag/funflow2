@@ -4,8 +4,8 @@
   # Main project libraries
   (self: super:
     let
-      # The `project` local is the project created using haskell.nix. 
-      # We extract funflow's libraries from it explicitly below in order to 
+      # The `project` local is the project created using haskell.nix.
+      # We extract funflow's libraries from it explicitly below in order to
       # add extra system dependencies, etc.
       project = super.haskell-nix.stackProject {
         buildInputs = [ super.git ];
@@ -24,13 +24,14 @@
       funflow-tests = project.funflow.components.tests.test-funflow.overrideAttrs (old:
         { buildInputs = old.buildInputs ++ [ super.docker ]; }
       );
-    
+      funflow-unit-tests = project.funflow.components.tests.unit-tests;
       # Shell with funflow's dependencies
       funflow-shell = project.shellFor ({
         exactDeps = true;
         STACK_IN_NIX_SHELL = true;
         buildInputs = [ super.docker ];
       });
+      makefile-tool = project.funflow-examples.components.exes.makefile-tool;
 
       # Other libraries defined in this repo
       cas-store = project.cas-store.components.library;
@@ -43,6 +44,10 @@
       docker-client-tests = project.docker-client.components.tests.primary.overrideAttrs (old:
         { buildInputs = old.buildInputs ++ [ super.docker ]; }
       );
+      # Also include kernmantle for references in the docs
+      kernmantle = project.kernmantle.components.library;
+      kernmantle-batteries = project.kernmantle-batteries.components.library;
+      kernmantle-caching = project.kernmantle-caching.components.library;
     }
   )
 
@@ -54,7 +59,7 @@
       {
         ihaskell.components.tests.hspec = super.projectHaskellPackages.ihaskell.components.tests.hspec.overrideAttrs
           (old:
-            { 
+            {
               preCheck = ''
                 export HOME=$TMPDIR/home
                 export PATH=$PWD/dist/build/ihaskell:$PATH
@@ -83,7 +88,7 @@
   (self: super:
     {
       # API documentation
-      api-docs = 
+      api-docs =
         let
           # List of packages to generate doc of
           doc-libs = with self; [
@@ -94,6 +99,9 @@
             cas-hashable-s3
             external-executor
             docker-client
+            kernmantle
+            kernmantle-batteries
+            kernmantle-caching
           ];
         in
           self.haddock-combine { hspkgs = doc-libs; };
@@ -104,7 +112,7 @@
   )
 
 
-  # Utility function for combining haddock docs into a single closure with 
+  # Utility function for combining haddock docs into a single closure with
   # relative hyperlinks (so they work on GitHub pages)
   (self: super:
     { haddock-combine = super.callPackage ./pkgs/haddock-combine.nix { }; }

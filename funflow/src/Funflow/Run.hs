@@ -64,8 +64,8 @@ import Docker.API.Client
   )
 import Funflow.Config (ConfigKeysBySource (..), Configurable (..), ExternalConfig (..), missing, readEnvs, readYamlFileConfig)
 import Funflow.Flow (RequiredCore, RequiredStrands)
-import Funflow.Run.Orphans ()
 import Funflow.Flow.Orphans ()
+import Funflow.Run.Orphans ()
 import Funflow.Tasks.Docker
   ( Arg (Arg, Placeholder),
     DockerTask (DockerTask),
@@ -98,8 +98,12 @@ data RunFlowConfig = RunFlowConfig
   }
 
 -- | Run a flow, parsing any required `Configurable` values from their respective sources.
--- Note that this method does NOT provide an implementation of parsing ConfigFromCLI
--- values at the moment.
+-- This flow executor includes interpreters for the following tasks:
+--
+--  * `SimpleTask`
+--  * `StoreTask`
+--  * `DockerTask` - The container is run with working directory '/workdir'. Files written to this directory
+--    are included in the tasks's `CS.Item` output.
 runFlowWithConfig ::
   -- | The configuration of the flow
   RunFlowConfig ->
@@ -143,7 +147,7 @@ runFlowWithConfig config flow input =
             Just path -> readYamlFileConfig $ toFilePath path
           envConfig <- readEnvs $ HashSet.toList $ envConfigKeys dockerConfigs
           -- TODO: Support for configurations via a CLI.
-          let externalConfig = ExternalConfig {fileConfig = fileConfig, envConfig = envConfig, cliConfig = HashMap.empty}
+          let externalConfig = ExternalConfig {fileConfig = fileConfig, envConfig = envConfig}
               missingConfigs = missing externalConfig requiredConfigs
 
           -- At load-time, ensure that all expected configurations could be found.
@@ -176,7 +180,8 @@ runFlowWithConfig config flow input =
                     putStrLn $ "Pulling docker image: " ++ T.unpack image
                     pullResult <- runExceptT $ pullImage manager image
                     case pullResult of
-                      Left ex ->
+                      Left ex -> do
+                        putStrLn "Error pulling docker image; is Internet connected? Is Docker running?"
                         throw ex
                       Right _ ->
                         -- No error, just continue
@@ -255,12 +260,12 @@ interpretDockerTask manager store (DockerTask (DockerTaskConfig {DE.image, DE.co
                                 Arg configValue -> case configValue of
                                   Literal value -> Right value
                                   ConfigFromEnv k -> Left $ "interpretDockerTask encountered an unrendered externally configurable value at key: " ++ T.unpack k
-                                  ConfigFromCLI k -> Left $ "interpretDockerTask encountered an unrendered externally configurable value at key: " ++ T.unpack k
+                                  -- ConfigFromCLI k -> Left $ "interpretDockerTask encountered an unrendered externally configurable value at key: " ++ T.unpack k
                                   ConfigFromFile k -> Left $ "interpretDockerTask encountered an unrendered externally configurable value at key: " ++ T.unpack k
                                 Placeholder label ->
                                   let maybeVal = Map.lookup label argsVals
                                    in case maybeVal of
-                                        Nothing -> Left $ "Unfilled label" ++ label
+                                        Nothing -> Left $ "Unfilled label (" ++ label ++ ")"
                                         Just val -> Right val
                             )
                             | arg <- argsRenderedWithConfig
